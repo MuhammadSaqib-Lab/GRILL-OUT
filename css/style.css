@@ -1,0 +1,206 @@
+/* Grill Out — custom styles that go beyond utility classes */
+
+@import url('https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Poppins:wght@300;400;500;600;700;800&display=swap');
+
+html {
+  scroll-behavior: smooth;
+}
+
+body {
+  font-family: 'Poppins', sans-serif;
+  background-color: #121212;
+}
+
+.font-display {
+  font-family: 'Bebas Neue', sans-serif;
+  letter-spacing: 0.03em;
+}
+
+/* Offset anchored sections so the sticky nav never covers the heading */
+section[id] {
+  scroll-margin-top: 84px;
+}
+
+/* Slim, on-brand scrollbar for the cart drawer */
+.thin-scrollbar::-webkit-scrollbar {
+  width: 6px;
+}
+.thin-scrollbar::-webkit-scrollbar-track {
+  background: transparent;
+}
+.thin-scrollbar::-webkit-scrollbar-thumb {
+  background-color: rgba(255, 107, 0, 0.4);
+  border-radius: 999px;
+}
+
+/* ============================================================ */
+/* HERO — 3D parallax, ember/smoke particles, cinematic overlay  */
+/* ============================================================ */
+
+/* Perspective on the section lets the mouse-tilted content (see
+   js/script.js) read as a real 3D plane rather than a flat CSS trick. */
+.hero {
+  perspective: 1600px;
+}
+
+/* Dark, moody flame-grilled-steak photo. Oversized + bottom-anchored so
+   the parallax translate (js/script.js) never reveals an edge. */
+.hero-bg-layer {
+  position: absolute;
+  inset: -10%;
+  background-image: url('https://images.unsplash.com/photo-1503220178855-e31ec372b8ad?auto=format&fit=crop&w=1920&q=80');
+  background-size: cover;
+  background-position: center 78%;
+  transform: translate3d(0, 0, 0) scale(1.08);
+  will-change: transform;
+}
+
+/* Clean, even darkening — no colored bloom — so the white and orange
+   type stays crisp against the photo at every point behind it. */
+.hero-overlay {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(180deg, rgba(18, 18, 18, 0.68) 0%, rgba(15, 10, 8, 0.74) 30%, rgba(10, 6, 5, 0.9) 65%, #121212 100%);
+}
+
+.hero-vignette {
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(ellipse at center, transparent 30%, rgba(0, 0, 0, 0.7) 100%);
+  pointer-events: none;
+}
+
+/* Embers + smoke puffs — elements are generated in js/script.js,
+   all motion here is pure CSS (transform + opacity, GPU-only). */
+.hero-particles {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+.ember {
+  position: absolute;
+  bottom: -5%;
+  border-radius: 50%;
+  background: radial-gradient(circle, #ffdca3 0%, #ff8a3d 45%, #ff6b00 75%, transparent 80%);
+  box-shadow: 0 0 6px 2px rgba(255, 140, 0, 0.65);
+  opacity: 0;
+  animation-name: ember-rise;
+  animation-timing-function: cubic-bezier(0.25, 0.1, 0.4, 1);
+  animation-iteration-count: infinite;
+}
+
+@keyframes ember-rise {
+  0% { transform: translate(0, 0) scale(1); opacity: 0; }
+  10% { opacity: 1; }
+  80% { opacity: 0.7; }
+  100% { transform: translate(var(--drift), -110vh) scale(0.25); opacity: 0; }
+}
+
+.smoke-puff {
+  position: absolute;
+  bottom: -10%;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(255, 255, 255, 0.09), rgba(255, 255, 255, 0) 70%);
+  filter: blur(16px);
+  opacity: 0;
+  animation-name: smoke-rise;
+  animation-timing-function: linear;
+  animation-iteration-count: infinite;
+}
+
+@keyframes smoke-rise {
+  0% { transform: translate(0, 0) scale(0.6); opacity: 0; }
+  18% { opacity: 0.4; }
+  100% { transform: translate(var(--drift), -125vh) scale(2.4); opacity: 0; }
+}
+
+/* Mouse-tilted 3D plane for the hero copy (js/script.js sets the
+   rotateX/rotateY transform on mousemove and eases back on leave). */
+.hero-content {
+  transform-style: preserve-3d;
+  will-change: transform;
+  transition: transform 0.4s cubic-bezier(0.2, 0, 0, 1);
+}
+
+/* VanillaTilt (hero CTAs + menu cards) needs a 3D-ready box and a
+   glare layer that respects our rounded corners. */
+[data-tilt] {
+  transform-style: preserve-3d;
+}
+.js-tilt-glare {
+  border-radius: inherit;
+  overflow: hidden;
+}
+
+/* Touch devices skip VanillaTilt (see js/script.js) — give them a plain
+   tap press instead, per the platform-adaptation guidance this follows. */
+@media (pointer: coarse) {
+  [data-tilt]:active {
+    transform: scale(0.97);
+    transition: transform 0.1s ease-out;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .hero-bg-layer,
+  .hero-content {
+    transition: none !important;
+  }
+  .ember,
+  .smoke-puff {
+    animation: none !important;
+  }
+  .hero-particles {
+    display: none;
+  }
+}
+
+/* Gentle ambient flicker on the hero flame emoji */
+@keyframes flicker {
+  0%, 100% { transform: scale(1) rotate(0deg); opacity: 1; }
+  50% { transform: scale(1.08) rotate(-2deg); opacity: 0.9; }
+}
+.animate-flicker {
+  animation: flicker 2.2s ease-in-out infinite;
+}
+
+/* Bounce hint for the hero scroll indicator */
+@keyframes bounce-slow {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(8px); }
+}
+.animate-bounce-slow {
+  animation: bounce-slow 2s ease-in-out infinite;
+}
+
+/* Quick pop feedback when a card is added to the cart */
+@keyframes pop {
+  0% { transform: scale(1); }
+  40% { transform: scale(1.12); }
+  100% { transform: scale(1); }
+}
+.animate-pop {
+  animation: pop 0.35s ease-in-out;
+}
+
+/* Cart drawer + its backdrop are toggled via the .open class (see js/script.js) */
+#cart-backdrop {
+  transition: opacity 0.3s ease;
+}
+#cart-drawer {
+  transition: transform 0.35s cubic-bezier(0.4, 0, 0.2, 1);
+}
+#cart-drawer.open {
+  transform: translateX(0);
+}
+#cart-backdrop.open {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+/* Mobile nav panel slide */
+#mobile-menu {
+  transition: max-height 0.3s ease, opacity 0.25s ease;
+}

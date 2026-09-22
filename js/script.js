@@ -3,6 +3,11 @@
 // cart drawer, reservation form). No frameworks, no build step.
 // ============================================================
 
+// ---- Backend API ----------------------------------------------------------
+// Points at the Express API in backend/ (see backend/API.md). Change this
+// one line when deploying the API somewhere other than localhost.
+const API_BASE_URL = "http://localhost:4000/api";
+
 // ---- Image bank ---------------------------------------------------------
 // Verified stock photography (Unsplash), one per dish type. Menu items
 // reuse the closest matching type rather than needing a unique photo each,
@@ -32,11 +37,9 @@ const IMG = {
   cocktails: "https://images.unsplash.com/photo-1544145945-f90425340c7e?auto=format&fit=crop&w=800&q=80",
   noodles: "https://images.unsplash.com/photo-1585032226651-759b368d7246?auto=format&fit=crop&w=800&q=80",
   soup: "https://images.unsplash.com/photo-1547592166-23ac45744acd?auto=format&fit=crop&w=800&q=80",
-  ramen: "https://images.unsplash.com/photo-1526318896980-cf78c088247c?auto=format&fit=crop&w=800&q=80",
   stirFryRice: "https://images.unsplash.com/photo-1512058564366-18510be2db19?auto=format&fit=crop&w=800&q=80",
   friedRice: "https://images.unsplash.com/photo-1603133872878-684f208fb84b?auto=format&fit=crop&w=800&q=80",
   hotCoffee: "https://images.unsplash.com/photo-1509042239860-f550ce710b93?auto=format&fit=crop&w=800&q=80",
-  flavoredCoffee: "https://images.unsplash.com/photo-1461023058943-07fcbe16d735?auto=format&fit=crop&w=800&q=80",
   tea: "https://images.unsplash.com/photo-1544787219-7f47ccb76574?auto=format&fit=crop&w=800&q=80",
   lemonade: "https://images.unsplash.com/photo-1621263764928-df1444c5e859?auto=format&fit=crop&w=800&q=80",
   sundae: "https://images.unsplash.com/photo-1563805042-7684c019e1cb?auto=format&fit=crop&w=800&q=80",
@@ -48,6 +51,38 @@ const IMG = {
   frappe: "https://images.unsplash.com/photo-1517701550927-30cf4ba1dba5?auto=format&fit=crop&w=800&q=80",
   icedLatte: "https://images.unsplash.com/photo-1517701604599-bb29b565090c?auto=format&fit=crop&w=800&q=80",
   iceCream: "https://images.unsplash.com/photo-1560008581-09826d1de69e?auto=format&fit=crop&w=800&q=80",
+
+  // Added in the full image audit — every entry below was downloaded and
+  // visually checked against its name before being wired into MENU_ITEMS
+  // (see the audit note above the array for what was wrong and why).
+  pizzaLoaded: "https://images.unsplash.com/photo-1604382354936-07c5d9983bd3?auto=format&fit=crop&w=800&q=80",
+  pizzaWhole: "https://images.unsplash.com/photo-1534308983496-4fabb1a015ee?auto=format&fit=crop&w=800&q=80",
+  burgerFishCrispy: "https://images.unsplash.com/photo-1615297928064-24977384d0da?auto=format&fit=crop&w=800&q=80",
+  burgerChickenCrispy: "https://images.unsplash.com/photo-1637710847214-f91d99669e18?auto=format&fit=crop&w=800&q=80",
+  burgerChickenClean: "https://images.unsplash.com/photo-1692737349870-e3bfc704ebf9?auto=format&fit=crop&w=800&q=80",
+  burgerBeefFlame: "https://images.unsplash.com/photo-1607013251379-e6eecfffe234?auto=format&fit=crop&w=800&q=80",
+  burgerGlazed: "https://images.unsplash.com/photo-1610440042657-612c34d95e9f?auto=format&fit=crop&w=800&q=80",
+  burgerLoaded: "https://images.unsplash.com/photo-1549611016-3a70d82b5040?auto=format&fit=crop&w=800&q=80",
+  burgerDoublePatty: "https://images.unsplash.com/photo-1572802419224-296b0aeee0d9?auto=format&fit=crop&w=800&q=80",
+  burgerKnife: "https://images.unsplash.com/photo-1499028344343-cd173ffc68a9?auto=format&fit=crop&w=800&q=80",
+  wrapBeefRoll: "https://images.unsplash.com/photo-1665469222949-3de88d37ee5a?auto=format&fit=crop&w=800&q=80",
+  wrapShawarma: "https://images.unsplash.com/photo-1529006557810-274b9b2fc783?auto=format&fit=crop&w=800&q=80",
+  friesChilliCheese: "https://images.unsplash.com/photo-1666304752980-678d5c35c911?auto=format&fit=crop&w=800&q=80",
+  friesPizzaStyle: "https://images.unsplash.com/photo-1639744210631-209fce3e256c?auto=format&fit=crop&w=800&q=80",
+  wingsGlazed: "https://images.unsplash.com/photo-1567620832903-9fc6debc209f?auto=format&fit=crop&w=800&q=80",
+  wingsSaucyRed: "https://images.unsplash.com/photo-1608039755401-742074f0548d?auto=format&fit=crop&w=800&q=80",
+  wingsCrispyDry: "https://images.unsplash.com/photo-1637273484026-11d51fb64024?auto=format&fit=crop&w=800&q=80",
+  soupCorn: "https://images.unsplash.com/photo-1781332152789-2165582fddb6?auto=format&fit=crop&w=800&q=80",
+  soupHotSour: "https://images.unsplash.com/photo-1527976746453-f363eac4d889?auto=format&fit=crop&w=800&q=80",
+  soupThai: "https://images.unsplash.com/photo-1761037994516-502ed10932b0?auto=format&fit=crop&w=800&q=80",
+  pastaFiery: "https://images.unsplash.com/photo-1528738064262-9f834cbdfda1?auto=format&fit=crop&w=800&q=80",
+  stirFryManchurian: "https://images.unsplash.com/photo-1682622110433-65513a55d7da?auto=format&fit=crop&w=800&q=80",
+  stirFryOyster: "https://images.unsplash.com/photo-1609183480237-ccbb2d7c5772?auto=format&fit=crop&w=800&q=80",
+  stirFryChilliRed: "https://images.unsplash.com/photo-1624726175512-19b9baf9fbd1?auto=format&fit=crop&w=800&q=80",
+  latteHot: "https://images.unsplash.com/photo-1534687941688-651ccaafbff8?auto=format&fit=crop&w=800&q=80",
+  steakSliced: "https://images.unsplash.com/photo-1588168333986-5078d3ae3976?auto=format&fit=crop&w=800&q=80",
+  steakStrips: "https://images.unsplash.com/photo-1633436375795-12b3b339712f?auto=format&fit=crop&w=800&q=80",
+  steakRibeye: "https://images.unsplash.com/photo-1683315446874-e6a629087ef8?auto=format&fit=crop&w=800&q=80",
 };
 
 // ---- Categories (drive both the filter pills and the section grouping) ---
@@ -92,45 +127,45 @@ const MENU_ITEMS = [
     options: [{ label: "S", price: 849 }, { label: "M", price: 1399 }, { label: "L", price: 1949 }] },
   { id: 3, name: "Stuffed Crust Pizza", category: "pizza-special",
     desc: "Special chicken, seekh kabab, capsicum, onion, mushroom & olives, stuffed crust, white sauce.",
-    img: IMG.pizzaPepperoni, badge: "chef",
+    img: IMG.pizzaMargherita, badge: "chef",
     options: [{ label: "M", price: 1449 }, { label: "L", price: 2049 }] },
   { id: 4, name: "Shahi Mughlai", category: "pizza-special",
     desc: "Mughlai chicken, onion & capsicum finished with our special white sauce.",
-    img: IMG.pizzaMargherita,
+    img: IMG.pizzaPepperoni,
     options: [{ label: "S", price: 849 }, { label: "M", price: 1249 }, { label: "L", price: 1799 }] },
 
   // 2. Regular Pizza Flavors
   { id: 5, name: "Grill Out Special", category: "pizza-regular",
     desc: "Our house-signature pizza loaded with a generous mix of toppings.",
-    img: IMG.pizzaSpecial, badge: "chef",
+    img: IMG.pizzaWhole, badge: "chef",
     options: [{ label: "S", price: 849 }, { label: "M", price: 1299 }, { label: "L", price: 1849 }] },
   { id: 6, name: "Seekh Kabab", category: "pizza-regular",
     desc: "Spiced seekh kabab, onion & capsicum topped with our special sauce.",
-    img: IMG.pizzaFlatbread,
+    img: IMG.pizzaLoaded,
     options: [{ label: "S", price: 899 }, { label: "M", price: 1399 }, { label: "L", price: 1949 }] },
   { id: 7, name: "Karara Tikka Pizza", category: "pizza-regular",
     desc: "Special chicken, capsicum, onion & jalapeno with olives for a fiery kick.",
-    img: IMG.pizzaPepperoni, badge: "spicy",
+    img: IMG.pizzaSpecial, badge: "spicy",
     options: [{ label: "M", price: 1249 }, { label: "L", price: 1749 }] },
   { id: 8, name: "Chicken Supreme", category: "pizza-regular",
     desc: "Chicken tikka, crushed kabab, capsicum & tomatoes on a loaded base.",
-    img: IMG.pizzaMargherita,
+    img: IMG.pizzaFlatbread,
     options: [{ label: "S", price: 849 }, { label: "M", price: 1249 }, { label: "L", price: 1799 }] },
   { id: 9, name: "Chicken Tikka", category: "pizza-regular",
     desc: "Classic chicken tikka, onion & capsicum on a bed of melted cheese.",
-    img: IMG.pizzaSpecial,
+    img: IMG.pizzaMargherita,
     options: [{ label: "S", price: 849 }, { label: "M", price: 1249 }, { label: "L", price: 1799 }] },
   { id: 10, name: "Chicken Fajita", category: "pizza-regular",
     desc: "Fajita chicken, onion, capsicum, olives & tomatoes for a zesty bite.",
-    img: IMG.pizzaFlatbread,
+    img: IMG.pizzaPepperoni,
     options: [{ label: "S", price: 849 }, { label: "M", price: 1249 }, { label: "L", price: 1799 }] },
   { id: 11, name: "Chicken Tandoori", category: "pizza-regular",
     desc: "Hot 'n' spicy tandoori chicken, capsicum, onion & jalapeno with chilli flakes.",
-    img: IMG.pizzaPepperoni, badge: "spicy",
+    img: IMG.pizzaWhole, badge: "spicy",
     options: [{ label: "S", price: 849 }, { label: "M", price: 1249 }, { label: "L", price: 1799 }] },
   { id: 12, name: "Peri Peri Special", category: "pizza-regular",
     desc: "Peri peri chicken, capsicum, mushroom, onion & olives finished with peri peri sauce.",
-    img: IMG.pizzaMargherita, badge: "spicy",
+    img: IMG.pizzaLoaded, badge: "spicy",
     options: [{ label: "S", price: 849 }, { label: "M", price: 1249 }, { label: "L", price: 1799 }] },
   { id: 13, name: "Cheese Lover", category: "pizza-regular",
     desc: "Our special pizza sauce topped with cheese, and a bit more cheese.",
@@ -156,7 +191,7 @@ const MENU_ITEMS = [
     img: IMG.friesPlain, options: [{ label: "M", price: 399 }, { label: "L", price: 449 }] },
   { id: 19, name: "Mayo Fries", category: "appetizers",
     desc: "Crispy fries tossed in creamy house-made mayo.",
-    img: IMG.friesLoaded, options: [{ label: "M", price: 449 }, { label: "L", price: 549 }] },
+    img: IMG.friesPlain, options: [{ label: "M", price: 449 }, { label: "L", price: 549 }] },
   { id: 20, name: "Nuggets", category: "appetizers",
     desc: "Golden breaded chicken nuggets, crispy on the outside, juicy within.",
     img: IMG.nuggets, options: [{ label: "5 Pcs", price: 449 }, { label: "10 Pcs", price: 799 }] },
@@ -164,34 +199,34 @@ const MENU_ITEMS = [
   // 4. Burgers
   { id: 21, name: "Ba Zinga", category: "burgers",
     desc: "Crispy fried chicken fillet, melted cheese & our signature peri peri sauce.",
-    img: IMG.burgerClassic, badge: "chef", price: 599 },
+    img: IMG.burgerChickenCrispy, badge: "chef", price: 599 },
   { id: 22, name: "Jack's Grilled Burger", category: "burgers",
     desc: "Flame-grilled chicken breast, fresh lettuce, tomato & smoky mayo.",
-    img: IMG.burgerCombo, price: 599 },
+    img: IMG.burgerChickenClean, price: 599 },
   { id: 23, name: "Flammer", category: "burgers",
     desc: "Spiced beef patty stacked high with a fiery house sauce.",
-    img: IMG.burgerStack, badge: "spicy", price: 649 },
+    img: IMG.burgerBeefFlame, badge: "spicy", price: 649 },
   { id: 24, name: "Flango", category: "burgers",
     desc: "Grilled chicken layered with tangy mango-chilli glaze.",
-    img: IMG.burgerClassic, price: 649 },
+    img: IMG.burgerGlazed, price: 649 },
   { id: 25, name: "Rock Star Grilled Burger", category: "burgers",
     desc: "Char-grilled beef patty, melted cheese & crispy onions.",
-    img: IMG.burgerCombo, badge: "chef", price: 699 },
+    img: IMG.burgerLoaded, badge: "chef", price: 699 },
   { id: 26, name: "Lava Burger", category: "burgers",
     desc: "Double beef patty smothered in melted cheese and a fiery lava sauce.",
-    img: IMG.burgerStack, badge: "spicy", price: 699 },
+    img: IMG.burgerDoublePatty, badge: "spicy", price: 699 },
   { id: 27, name: "Fillet o Fire", category: "burgers",
     desc: "Crispy fish fillet with a spicy tartare kick.",
-    img: IMG.burgerClassic, badge: "spicy", price: 599 },
+    img: IMG.burgerFishCrispy, badge: "spicy", price: 599 },
   { id: 28, name: "Crispo", category: "burgers",
     desc: "Crispy chicken fillet, lettuce & mayo on a toasted bun.",
     img: IMG.burgerCombo, price: 449 },
   { id: 29, name: "Beef Steak Burger", category: "burgers",
     desc: "Thick-cut beef steak patty with all the classic fixings.",
-    img: IMG.burgerStack, price: 749 },
+    img: IMG.burgerKnife, price: 749 },
   { id: 30, name: "Zooper Beef", category: "burgers",
     desc: "Loaded double beef patty burger built for big appetites.",
-    img: IMG.burgerClassic, price: 649 },
+    img: IMG.burgerStack, price: 649 },
 
   // 5. Steaks (chicken / beef variants)
   { id: 31, name: "Mexican Grilled Steak", category: "steaks",
@@ -204,15 +239,15 @@ const MENU_ITEMS = [
     options: [{ label: "Chicken", price: 1699 }, { label: "Beef", price: 2299 }] },
   { id: 33, name: "Mushroom Grilled Steak", category: "steaks",
     desc: "Finished with a rich mushroom sauce for an earthy, savory bite.",
-    img: IMG.steakBeef,
+    img: IMG.steakRibeye,
     options: [{ label: "Chicken", price: 1699 }, { label: "Beef", price: 2299 }] },
   { id: 34, name: "Moroccan Grilled Steak", category: "steaks",
     desc: "Warm Moroccan spice blend, grilled low and slow for deep flavor.",
-    img: IMG.steakChicken,
+    img: IMG.steakStrips,
     options: [{ label: "Chicken", price: 1699 }, { label: "Beef", price: 2299 }] },
   { id: 35, name: "Smoky BBQ Grilled Steak", category: "steaks",
     desc: "Basted in a smoky BBQ glaze and seared to perfection.",
-    img: IMG.steakBeef, badge: "chef",
+    img: IMG.steakSliced, badge: "chef",
     options: [{ label: "Chicken", price: 1699 }, { label: "Beef", price: 2299 }] },
 
   // 6. Pasta & Others
@@ -221,7 +256,7 @@ const MENU_ITEMS = [
     img: IMG.pastaRed, badge: "spicy", price: 899 },
   { id: 37, name: "Flaming Pasta", category: "pasta",
     desc: "Fiery chilli-infused pasta for the heat-seekers.",
-    img: IMG.pastaCreamy, badge: "spicy", price: 899 },
+    img: IMG.pastaFiery, badge: "spicy", price: 899 },
   { id: 38, name: "Alfredo Fresco", category: "pasta",
     desc: "Silky, creamy alfredo sauce tossed through fettuccine.",
     img: IMG.pastaCreamy, price: 999 },
@@ -232,10 +267,10 @@ const MENU_ITEMS = [
   // 7. Wraps & Special Fries
   { id: 40, name: "Behari Roll", category: "wraps",
     desc: "Spiced behari beef rolled in a soft paratha wrap.",
-    img: IMG.wrap, price: 699 },
+    img: IMG.wrapBeefRoll, price: 699 },
   { id: 41, name: "Arabic Roll", category: "wraps",
     desc: "Grilled chicken, garlic sauce & pickles in a warm Arabic wrap.",
-    img: IMG.wrap, price: 699 },
+    img: IMG.wrapShawarma, price: 699 },
   { id: 42, name: "Fajita Wrap", category: "wraps",
     desc: "Grilled fajita chicken wrapped with crunchy slaw.",
     img: IMG.wrap, price: 449 },
@@ -244,10 +279,10 @@ const MENU_ITEMS = [
     img: IMG.friesLoaded, badge: "spicy", price: 649 },
   { id: 44, name: "Loaded Pizza Fries", category: "wraps",
     desc: "Fries topped with pizza sauce, mozzarella & toppings.",
-    img: IMG.friesLoaded, price: 699 },
+    img: IMG.friesPizzaStyle, price: 699 },
   { id: 45, name: "Chilli Cheese Fries", category: "wraps",
     desc: "Crispy fries smothered in chilli-cheese sauce.",
-    img: IMG.friesLoaded, badge: "spicy", price: 549 },
+    img: IMG.friesChilliCheese, badge: "spicy", price: 549 },
 
   // 8. Chicken Corner & Broast
   { id: 46, name: "Arabic Broast", category: "broast",
@@ -256,7 +291,7 @@ const MENU_ITEMS = [
     options: [{ label: "1 Pc", price: 349 }, { label: "2 Pcs", price: 649 }, { label: "5 Pcs", price: 1599 }] },
   { id: 47, name: "Smoke & Grill Chicken", category: "broast",
     desc: "Smoke-grilled chicken piece served with dip, or as a full meal.",
-    img: IMG.wings, badge: "chef",
+    img: IMG.steakChicken, badge: "chef",
     options: [{ label: "1 Pc + Dip", price: 399 }, { label: "1 Pc Meal", price: 499 }, { label: "2 Pcs Meal", price: 1049 }] },
 
   // 9. Meal Deals
@@ -339,49 +374,49 @@ const MENU_ITEMS = [
     options: [{ label: "Single", price: 549 }, { label: "Family", price: 1399 }] },
   { id: 70, name: "Chicken Corn Soup", category: "soups",
     desc: "Classic shredded chicken & sweet corn broth.",
-    img: IMG.soup,
+    img: IMG.soupCorn,
     options: [{ label: "Single", price: 399 }, { label: "Family", price: 1049 }] },
   { id: 71, name: "Hot n Sour Soup", category: "soups",
     desc: "Tangy, peppery broth with a warming chilli kick.",
-    img: IMG.soup, badge: "spicy",
+    img: IMG.soupHotSour, badge: "spicy",
     options: [{ label: "Single", price: 399 }, { label: "Family", price: 1049 }] },
   { id: 72, name: "Thai Soup", category: "soups",
     desc: "Fragrant Thai-style broth loaded with fresh herbs.",
-    img: IMG.ramen,
+    img: IMG.soupThai,
     options: [{ label: "Single", price: 399 }, { label: "Family", price: 1049 }] },
 
   // 15. Wings
   { id: 73, name: "Fried Wings", category: "wings",
     desc: "Classic golden-fried chicken wings.",
-    img: IMG.wings, options: [{ label: "5 Pcs", price: 499 }, { label: "10 Pcs", price: 899 }] },
+    img: IMG.wingsCrispyDry, options: [{ label: "5 Pcs", price: 499 }, { label: "10 Pcs", price: 899 }] },
   { id: 74, name: "Honey Wings", category: "wings",
     desc: "Crispy wings glazed in sweet honey sauce.",
-    img: IMG.wings, options: [{ label: "5 Pcs", price: 549 }, { label: "10 Pcs", price: 999 }] },
+    img: IMG.wingsGlazed, options: [{ label: "5 Pcs", price: 549 }, { label: "10 Pcs", price: 999 }] },
   { id: 75, name: "Grilled Wings", category: "wings",
     desc: "Char-grilled wings, smoky and lightly spiced.",
     img: IMG.wings, options: [{ label: "5 Pcs", price: 449 }, { label: "10 Pcs", price: 799 }] },
   { id: 76, name: "Peri Peri Wings", category: "wings",
     desc: "Fiery peri peri glaze over crispy wings.",
-    img: IMG.wings, badge: "spicy",
+    img: IMG.wingsSaucyRed, badge: "spicy",
     options: [{ label: "5 Pcs", price: 499 }, { label: "10 Pcs", price: 899 }] },
   { id: 77, name: "BBQ Wings", category: "wings",
     desc: "Smoky BBQ-glazed wings, grilled to a sticky finish.",
-    img: IMG.wings, badge: "chef",
+    img: IMG.wingsGlazed, badge: "chef",
     options: [{ label: "5 Pcs", price: 499 }, { label: "10 Pcs", price: 849 }] },
 
   // 16. Thai Chinese & Noodles / Rice
   { id: 78, name: "Chicken Chilli Dry with Rice", category: "thai-chinese",
     desc: "Wok-tossed chicken in a bold chilli-garlic glaze, served with rice.",
-    img: IMG.stirFryRice, badge: "spicy", price: 999 },
+    img: IMG.stirFryChilliRed, badge: "spicy", price: 999 },
   { id: 79, name: "Beef Chilli Dry with Rice", category: "thai-chinese",
     desc: "Tender beef strips in a fiery dry chilli sauce, served with rice.",
     img: IMG.stirFryRice, badge: "spicy", price: 1299 },
   { id: 80, name: "Chicken Manchurian with Rice", category: "thai-chinese",
     desc: "Deep-fried chicken tossed in tangy Indo-Chinese Manchurian sauce.",
-    img: IMG.stirFryRice, price: 949 },
+    img: IMG.stirFryManchurian, price: 949 },
   { id: 81, name: "Oyster Chicken with Rice", category: "thai-chinese",
     desc: "Chicken stir-fried in rich oyster sauce with vegetables.",
-    img: IMG.friedRice, price: 949 },
+    img: IMG.stirFryOyster, price: 949 },
   { id: 82, name: "Chicken Chowmein", category: "thai-chinese",
     desc: "Stir-fried noodles with chicken & crisp vegetables.",
     img: IMG.noodles, price: 899 },
@@ -402,7 +437,7 @@ const MENU_ITEMS = [
     ] },
   { id: 86, name: "Flavored Coffee", category: "hot-station",
     desc: "Signature flavored coffees & hot chocolate.",
-    img: IMG.flavoredCoffee,
+    img: IMG.latteHot,
     options: [
       { label: "Vanilla Latte", price: 549 }, { label: "Caramel Latte", price: 549 },
       { label: "Hot Chocolate", price: 499 }, { label: "Café Mocha", price: 499 },
@@ -637,6 +672,27 @@ const cartItemsEl = document.getElementById("cart-items");
 const cartEmptyEl = document.getElementById("cart-empty");
 const cartTotalEl = document.getElementById("cart-total");
 const cartCountBadges = document.querySelectorAll("[data-cart-count]");
+const checkoutFieldsEl = document.getElementById("checkout-fields");
+const checkoutNameEl = document.getElementById("checkout-name");
+const checkoutPhoneEl = document.getElementById("checkout-phone");
+const checkoutAddressEl = document.getElementById("checkout-address");
+const checkoutErrorEl = document.getElementById("checkout-error");
+let checkoutOrderType = "pickup";
+
+document.querySelectorAll(".order-type-btn").forEach((btn) => {
+  btn.addEventListener("click", () => {
+    checkoutOrderType = btn.dataset.orderType;
+    document.querySelectorAll(".order-type-btn").forEach((b) => {
+      const active = b === btn;
+      b.classList.toggle("bg-orange-600", active);
+      b.classList.toggle("border-orange-600", active);
+      b.classList.toggle("text-white", active);
+      b.classList.toggle("border-white/10", !active);
+      b.classList.toggle("text-gray-400", !active);
+    });
+    checkoutAddressEl.hidden = checkoutOrderType !== "delivery";
+  });
+});
 
 function openCart() {
   cartDrawer.classList.add("open");
@@ -655,6 +711,7 @@ function renderCart() {
 
   cartEmptyEl.classList.toggle("hidden", lines.length > 0);
   cartItemsEl.classList.toggle("hidden", lines.length === 0);
+  checkoutFieldsEl.classList.toggle("hidden", lines.length === 0);
 
   cartItemsEl.innerHTML = lines
     .map(([key, line]) => {
@@ -738,18 +795,87 @@ document.querySelectorAll("[data-cart-open]").forEach((btn) => btn.addEventListe
 document.querySelectorAll("[data-cart-close]").forEach((btn) => btn.addEventListener("click", closeCart));
 cartBackdrop.addEventListener("click", closeCart);
 
-document.getElementById("checkout-btn").addEventListener("click", () => {
+function showCheckoutError(message) {
+  checkoutErrorEl.textContent = message;
+  checkoutErrorEl.classList.remove("hidden");
+}
+
+function clearCheckoutError() {
+  checkoutErrorEl.classList.add("hidden");
+  checkoutErrorEl.textContent = "";
+}
+
+const checkoutBtn = document.getElementById("checkout-btn");
+const checkoutLabel = document.getElementById("checkout-label");
+
+checkoutBtn.addEventListener("click", async () => {
   if (cartCount() === 0) return;
-  const checkoutLabel = document.getElementById("checkout-label");
+  clearCheckoutError();
+
+  const customerName = checkoutNameEl.value.trim();
+  const phone = checkoutPhoneEl.value.trim();
+  const deliveryAddress = checkoutAddressEl.value.trim();
+
+  if (!customerName || !phone) {
+    showCheckoutError("Please enter your name and phone number.");
+    return;
+  }
+  if (checkoutOrderType === "delivery" && !deliveryAddress) {
+    showCheckoutError("Please enter a delivery address.");
+    return;
+  }
+
+  const items = Object.values(cart)
+    .filter((line) => line.qty > 0)
+    .map((line) => ({
+      menuItemId: line.id,
+      ...(line.option && line.option !== "default" ? { optionLabel: line.option } : {}),
+      quantity: line.qty,
+    }));
+
   const originalText = checkoutLabel.textContent;
-  checkoutLabel.textContent = "Order Placed! 🔥";
-  setTimeout(() => {
-    Object.keys(cart).forEach((key) => delete cart[key]);
-    renderCart();
-    MENU_ITEMS.forEach((item) => syncCardLabel(item.id));
+  checkoutBtn.disabled = true;
+  checkoutLabel.textContent = "Placing order…";
+
+  try {
+    const res = await fetch(`${API_BASE_URL}/orders`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        customerName,
+        phone,
+        items,
+        orderType: checkoutOrderType,
+        ...(checkoutOrderType === "delivery" ? { deliveryAddress } : {}),
+      }),
+    });
+    const body = await res.json();
+
+    if (!res.ok || !body.success) {
+      throw new Error(body?.error?.message || "Could not place your order. Please try again.");
+    }
+
+    checkoutLabel.textContent = `Order Placed! 🔥 (${body.data.id})`;
+    setTimeout(() => {
+      Object.keys(cart).forEach((key) => delete cart[key]);
+      renderCart();
+      MENU_ITEMS.forEach((item) => syncCardLabel(item.id));
+      checkoutNameEl.value = "";
+      checkoutPhoneEl.value = "";
+      checkoutAddressEl.value = "";
+      checkoutLabel.textContent = originalText;
+      checkoutBtn.disabled = false;
+      closeCart();
+    }, 2000);
+  } catch (err) {
     checkoutLabel.textContent = originalText;
-    closeCart();
-  }, 1600);
+    checkoutBtn.disabled = false;
+    showCheckoutError(
+      err instanceof TypeError
+        ? "Can't reach the server right now. Please check your connection and try again."
+        : err.message
+    );
+  }
 });
 
 // ---- Mobile nav ------------------------------------------------------------
@@ -786,17 +912,60 @@ window.addEventListener("scroll", () => {
 // ---- Reservation form --------------------------------------------------------
 const reservationForm = document.getElementById("reservation-form");
 const reservationSuccess = document.getElementById("reservation-success");
+const reservationErrorEl = document.getElementById("reservation-error");
+const reservationSubmitBtn = document.getElementById("reservation-submit");
+const reservationSubmitLabel = document.getElementById("reservation-submit-label");
 
-reservationForm.addEventListener("submit", (e) => {
+reservationForm.addEventListener("submit", async (e) => {
   e.preventDefault();
-  reservationForm.classList.add("hidden");
-  reservationSuccess.classList.remove("hidden");
+  reservationErrorEl.classList.add("hidden");
+
+  const payload = {
+    customerName: document.getElementById("res-name").value.trim(),
+    phone: document.getElementById("res-phone").value.trim(),
+    date: document.getElementById("reservation-date").value,
+    time: document.getElementById("res-time").value,
+    guests: document.getElementById("res-guests").value,
+  };
+  const notes = document.getElementById("res-notes").value.trim();
+  if (notes) payload.specialRequests = notes;
+
+  const originalLabel = reservationSubmitLabel.textContent;
+  reservationSubmitBtn.disabled = true;
+  reservationSubmitLabel.textContent = "Booking…";
+
+  try {
+    const res = await fetch(`${API_BASE_URL}/reservations`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    });
+    const body = await res.json();
+
+    if (!res.ok || !body.success) {
+      const firstFieldError = body?.error?.details && Object.values(body.error.details)[0]?.[0];
+      throw new Error(firstFieldError || body?.error?.message || "Could not confirm your reservation.");
+    }
+
+    reservationForm.classList.add("hidden");
+    reservationSuccess.classList.remove("hidden");
+  } catch (err) {
+    reservationErrorEl.textContent =
+      err instanceof TypeError
+        ? "Can't reach the server right now. Please check your connection and try again."
+        : err.message;
+    reservationErrorEl.classList.remove("hidden");
+  } finally {
+    reservationSubmitBtn.disabled = false;
+    reservationSubmitLabel.textContent = originalLabel;
+  }
 });
 
 document.getElementById("reservation-reset").addEventListener("click", () => {
   reservationForm.reset();
   reservationForm.classList.remove("hidden");
   reservationSuccess.classList.add("hidden");
+  reservationErrorEl.classList.add("hidden");
 });
 
 // ---- Hero: 3D parallax, ember/smoke particles, mouse tilt -------------------

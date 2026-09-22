@@ -256,8 +256,9 @@
       </div>
 
       <div class="sm:col-span-2">
-        <button type="submit" class="w-full rounded-full bg-gradient-to-r from-flame to-ember px-8 py-3.5 text-sm font-semibold text-white shadow-lg shadow-flame/30 transition hover:scale-[1.02] hover:shadow-flame/50 active:scale-95">
-          Confirm Reservation
+        <p id="reservation-error" class="hidden mb-4 rounded-xl border border-red-500/30 bg-red-500/10 px-4 py-3 text-sm text-red-400"></p>
+        <button id="reservation-submit" type="submit" class="w-full rounded-full bg-gradient-to-r from-flame to-ember px-8 py-3.5 text-sm font-semibold text-white shadow-lg shadow-flame/30 transition hover:scale-[1.02] hover:shadow-flame/50 active:scale-95 disabled:opacity-60">
+          <span id="reservation-submit-label">Confirm Reservation</span>
         </button>
       </div>
     </form>
@@ -417,6 +418,23 @@
   </div>
 
   <div class="border-t border-white/10 px-6 py-6">
+    <!-- Minimal checkout details — same input/pill styling as the reservation
+         form and category filter tabs, so this isn't a new visual language,
+         just enough for POST /api/orders to have somewhere to send the order. -->
+    <div id="checkout-fields" class="hidden space-y-3 pb-5">
+      <input id="checkout-name" type="text" placeholder="Full name" autocomplete="name"
+        class="w-full rounded-xl border border-white/10 bg-charcoal px-3.5 py-2.5 text-sm text-white placeholder-gray-500 outline-none transition focus:border-flame focus:ring-2 focus:ring-flame/30" />
+      <input id="checkout-phone" type="tel" placeholder="Phone number" autocomplete="tel"
+        class="w-full rounded-xl border border-white/10 bg-charcoal px-3.5 py-2.5 text-sm text-white placeholder-gray-500 outline-none transition focus:border-flame focus:ring-2 focus:ring-flame/30" />
+      <div class="flex gap-2">
+        <button type="button" data-order-type="pickup" class="order-type-btn flex-1 rounded-full border border-orange-600 bg-orange-600 px-3 py-2 text-xs font-semibold text-white transition">Pickup</button>
+        <button type="button" data-order-type="delivery" class="order-type-btn flex-1 rounded-full border border-white/10 px-3 py-2 text-xs font-semibold text-gray-400 transition hover:border-flame hover:text-flame">Delivery</button>
+      </div>
+      <textarea id="checkout-address" rows="2" placeholder="Delivery address" hidden
+        class="w-full resize-none rounded-xl border border-white/10 bg-charcoal px-3.5 py-2.5 text-sm text-white placeholder-gray-500 outline-none transition focus:border-flame focus:ring-2 focus:ring-flame/30"></textarea>
+      <p id="checkout-error" class="hidden text-xs text-red-400"></p>
+    </div>
+
     <div class="mb-4 flex items-center justify-between text-sm">
       <span class="text-gray-400">Subtotal</span>
       <span id="cart-total" class="font-display text-2xl tracking-wide text-flame">Rs. 0</span>

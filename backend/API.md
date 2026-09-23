@@ -1,9 +1,9 @@
 # Grill Out API
 
-REST API for the Grill Out restaurant website. **Phase 1**: in-memory data,
-database-ready architecture (see [Architecture](#architecture)). No
-authentication — every endpoint here is intentionally public, matching what
-the existing frontend needs today.
+REST API for the Grill Out restaurant website, backed by **PostgreSQL via
+Prisma** (see [Architecture](#architecture) and `DATABASE.md` for the full
+schema/setup). No authentication — every endpoint here is intentionally
+public, matching what the existing frontend needs today.
 
 Base URL (local dev): `http://localhost:4000/api`
 
@@ -33,31 +33,38 @@ Every endpoint returns one of these two shapes. Never a bare object, never a bar
 | 403 | `CORS_NOT_ALLOWED` | request Origin isn't in the allowlist |
 | 404 | `NOT_FOUND` | resource (menu item / order / reservation / category) doesn't exist |
 | 404 | `ROUTE_NOT_FOUND` | no route matches the method + path |
-| 409 | `CONFLICT` | e.g. cancelling an order/reservation that's already past a cancellable state |
+| 409 | `CONFLICT` | e.g. cancelling an order/reservation that's already past a cancellable state, or a unique-constraint violation |
 | 429 | `RATE_LIMITED` | too many requests to a write endpoint |
 | 500 | `INTERNAL_ERROR` | unexpected server error (message is generic; details only in dev) |
+| 503 | `DATABASE_UNAVAILABLE` | the database connection is down |
 
 ---
 
 ## Health
 
 ### `GET /api/health`
-No auth, no rate limit.
+No auth, no rate limit. Always `200` — the API process being reachable and
+the database being reachable are reported separately (`status` degrades to
+`"degraded"` rather than the endpoint itself failing, so a monitoring check
+can tell "API is down" apart from "API is up but DB is down"). Never
+includes `DATABASE_URL`, credentials, or any other connection detail.
 
 **Response `200`**
 ```json
-{ "success": true, "data": { "status": "ok", "environment": "development", "uptimeSeconds": 42, "timestamp": "2026-09-22T13:00:00.000Z" } }
+{ "success": true, "data": { "status": "ok", "database": "connected", "environment": "development", "uptimeSeconds": 42, "timestamp": "2026-09-22T13:00:00.000Z" } }
 ```
+`status` is `"ok"` when `database` is `"connected"`, otherwise `"degraded"` with `database: "unavailable"`.
 
 ---
 
 ## Menu
 
-Backed by `src/data/menu.data.ts` — a direct, generated port of the
-frontend's own `IMG` bank + `MENU_ITEMS` + `CATEGORIES` (see
-`backend/scripts/generate-menu-data.js`). Names, prices, descriptions,
-images and categories are exactly what the site already shows; nothing was
-retyped by hand.
+Backed by PostgreSQL (`MenuCategory` / `MenuItem` / `MenuItemOption` — see
+`DATABASE.md`), seeded from `src/data/menu.data.ts`, itself a direct,
+generated port of the frontend's own `IMG` bank + `MENU_ITEMS` +
+`CATEGORIES` (see `backend/scripts/generate-menu-data.js`). Names, prices,
+descriptions, images and categories are exactly what the site already
+shows; nothing was retyped by hand at any step from frontend → seed → database.
 
 ### `GET /api/menu`
 Query params (both optional): `available=true|false`, `featured=true|false`.
@@ -118,9 +125,12 @@ the *lowest* option price:
 
 ## Orders
 
-Prices are **never** trusted from the client. Every order line is resolved
-against the live menu repository server-side; if the client sends a price,
-quantity discount, or total, it's ignored.
+Prices are **never** trusted from the client. Every order line is priced
+fresh from PostgreSQL, and the whole order — availability checks, pricing,
+`Order` row, `OrderItem` rows, and the upserted `Customer` — is written in a
+single Prisma transaction: if any line is invalid, everything rolls back
+and no partial order is ever left in the database. If the client sends a
+price, quantity discount, or total, it's ignored.
 
 ### `POST /api/orders`
 Rate-limited (`RATE_LIMIT_MAX` per `RATE_LIMIT_WINDOW_MS`, see `.env.example`).
@@ -153,11 +163,11 @@ Rate-limited (`RATE_LIMIT_MAX` per `RATE_LIMIT_WINDOW_MS`, see `.env.example`).
     "customerName": "Ahmed Khan",
     "phone": "0300-1234567",
     "items": [
-      { "menuItemId": 21, "name": "Ba Zinga", "unitPrice": 599, "quantity": 2, "lineTotal": 1198 },
-      { "menuItemId": 1, "name": "Crown Crust Pizza", "optionLabel": "L", "unitPrice": 1949, "quantity": 1, "lineTotal": 1949 }
+      { "menuItemId": 21, "name": "Ba Zinga", "unitPrice": 599, "quantity": 2, "subtotal": 1198 },
+      { "menuItemId": 1, "name": "Crown Crust Pizza", "optionLabel": "L", "unitPrice": 1949, "quantity": 1, "subtotal": 1949 }
     ],
     "subtotal": 3147,
-    "deliveryCharge": 150,
+    "deliveryFee": 150,
     "total": 3297,
     "orderType": "delivery",
     "deliveryAddress": "House 12, Street 4, GT Road, Haripur",
@@ -172,7 +182,9 @@ Rate-limited (`RATE_LIMIT_MAX` per `RATE_LIMIT_WINDOW_MS`, see `.env.example`).
 - `400 VALIDATION_ERROR` — missing/malformed fields, delivery with no address, bad phone/email
 - `400 BAD_REQUEST` — a `menuItemId` that doesn't exist, an item that's `available: false`, a missing/invalid `optionLabel` for a sized item
 
-Order statuses: `PENDING` → `CONFIRMED` → `PREPARING` → `READY` → `OUT_FOR_DELIVERY` → `COMPLETED`, or `CANCELLED` at any point before `COMPLETED`. Phase 1 only exposes the cancel transition (below); the rest are for kitchen/admin tooling in a later phase.
+Order statuses: `PENDING` → `CONFIRMED` → `PREPARING` → `READY` → `OUT_FOR_DELIVERY` → `COMPLETED`, or `CANCELLED` at any point before `COMPLETED`. Only the cancel transition (below) is exposed via API today; the rest are for the admin dashboard (next phase).
+
+`OrderItem` rows snapshot `itemNameSnapshot`, `optionLabelSnapshot`, and `unitPrice` at the moment of purchase — a later menu price change or even the menu item being deleted never alters a historical order's `items[]`.
 
 ### `GET /api/orders/:id`
 - `200` → the `Order`
@@ -261,21 +273,16 @@ in the current frontend needs them.
 ## Architecture
 
 ```
-Controller  →  Service  →  Repository  →  (Phase 1: in-memory array)
-                                        →  (Phase 2: database via ORM)
+Controller  →  Service  →  Repository  →  Prisma  →  PostgreSQL
 ```
 
-- **Controllers** (`src/controllers/`) — parse `req`, call a service, call `sendSuccess`. No business logic.
-- **Services** (`src/services/`) — business rules: order pricing, cancellation eligibility, category validation. Depend only on repository *interfaces*, never on the in-memory implementation directly.
-- **Repositories** (`src/repositories/`) — the only files that touch storage. Each exports an interface (`MenuRepository`, `OrderRepository`, `ReservationRepository`) and an `InMemory*` implementation of it.
+- **Controllers** (`src/controllers/`) — parse `req`, call a service, call `sendSuccess`. No business logic, no Prisma imports.
+- **Services** (`src/services/`) — business rules: which delivery fee applies, cancellation eligibility, category validation. Depend only on repository *interfaces*.
+- **Repositories** (`src/repositories/`) — the only files that import `@prisma/client` or touch `src/config/prisma.ts`. Each exports an interface (`MenuRepository`, `OrderRepository`, `ReservationRepository`) and a `Prisma*` implementation of it; `PrismaOrderRepository.createOrder` and `PrismaReservationRepository.createReservation` are where the transactional, database-price-is-authoritative logic lives.
 - **Validators** (`src/validators/`) — Zod schemas, applied by the generic `validateRequest` middleware before a controller ever runs.
 
-## Database-readiness (Phase 2 entry point)
+See `DATABASE.md` for the full schema, migration/seed commands, and local setup. See `src/config/prisma.ts` for the Prisma Client singleton.
 
-To add a real database, only the repository layer changes:
+## Next phase: admin dashboard
 
-1. Implement `MenuRepository` / `OrderRepository` / `ReservationRepository` against your ORM/driver of choice (e.g. `PrismaMenuRepository`).
-2. Swap the exported singleton in each `*.repository.ts` file (`export const menuRepository = new PrismaMenuRepository(...)` instead of `new InMemoryMenuRepository()`).
-3. Run `generate-menu-data.js` once more (or a one-time seed script built the same way) to seed the real table from the frontend's current menu — everything downstream (services, controllers, routes, the API contracts documented above) is unchanged.
-
-No controller, service, route, or validator needs to change. `IN-memory` order/reservation IDs are already opaque strings (`ORD-XXXXXXXX` / `RES-XXXXXXXX`) generated at the repository boundary, so switching to DB-generated IDs (UUID, cuid, autoincrement) is also contained entirely to that layer.
+The database now gives a clean foundation for menu management, order/reservation status updates, customer lookups by phone, and basic analytics — none of that is built yet. No admin routes, no auth, nothing beyond what this document describes exists today.

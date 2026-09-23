@@ -1,0 +1,225 @@
+// Grill Out — production database schema.
+//
+// Design notes that explain the non-obvious choices below (see DATABASE.md
+// for the full write-up):
+//
+// - MenuItem.id stays a plain Int, seeded with the exact 1-99 values the
+//   frontend already hardcodes in data-add-to-cart="21" etc. Changing this
+//   to a generated id would break the live UI.
+// - Order.id / Reservation.id stay application-generated strings
+//   ("ORD-XXXXXXXX" / "RES-XXXXXXXX", see src/repositories/*.ts) rather
+//   than Prisma defaults, because that format is already the documented,
+//   tested API contract from Phase 1.
+// - MenuItemOption exists because many real menu items (pizza sizes, steak
+//   chicken/beef, wing piece-counts, the whole Cold Station / Bubble Tea
+//   sections) are priced per-variant, not per-item. Dropping this would
+//   mean inventing a single price where the restaurant's real menu has
+//   several — exactly what this phase was told not to do.
+// - OrderItem snapshots the item name, chosen option label, and unit price
+//   at the moment of purchase, and menuItemId is nullable with
+//   onDelete: SetNull — a historical order must keep reading correctly
+//   even if the referenced menu item is later edited or removed.
+// - No ContactMessage / NewsletterSubscriber models: index.html has no
+//   contact form and no newsletter signup (verified before writing this
+//   schema, and again — nothing changed since Phase 1). Nothing to back.
+// - AdminUser (Phase 3): passwordHash only, never a plaintext password
+//   column. Bootstrapped by prisma/seed.ts from ADMIN_EMAIL/ADMIN_PASSWORD
+//   env vars (hashed before insert) — no credentials hardcoded anywhere in
+//   source. See src/modules/admin-auth for the login/session code.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ---------------------------------------------------------------------------
+// Menu
+// ---------------------------------------------------------------------------
+
+model MenuCategory {
+  id          Int        @id @default(autoincrement())
+  slug        String     @unique
+  name        String
+  description String?
+  image       String?
+  sortOrder   Int        @default(0)
+  isActive    Boolean    @default(true)
+  items       MenuItem[]
+  createdAt   DateTime   @default(now())
+  updatedAt   DateTime   @updatedAt
+
+  @@map("menu_categories")
+}
+
+model MenuItem {
+  id          Int              @id @default(autoincrement())
+  categoryId  Int
+  category    MenuCategory     @relation(fields: [categoryId], references: [id], onDelete: Restrict)
+  name        String
+  slug        String           @unique
+  description String
+  // Base price. For items with `options`, this is the lowest option price —
+  // matches the API contract already documented in API.md from Phase 1.
+  price       Decimal          @db.Decimal(10, 2)
+  image       String
+  isAvailable Boolean          @default(true)
+  isFeatured  Boolean          @default(false)
+  // e.g. ["spicy"] — preserves the frontend's existing 🌶 badge data.
+  tags        String[]         @default([])
+  sortOrder   Int              @default(0)
+  options     MenuItemOption[]
+  orderItems  OrderItem[]
+  createdAt   DateTime         @default(now())
+  updatedAt   DateTime         @updatedAt
+
+  @@index([categoryId])
+  @@index([isAvailable])
+  @@index([isFeatured])
+  @@map("menu_items")
+}
+
+model MenuItemOption {
+  id         Int      @id @default(autoincrement())
+  menuItemId Int
+  menuItem   MenuItem @relation(fields: [menuItemId], references: [id], onDelete: Cascade)
+  label      String
+  price      Decimal  @db.Decimal(10, 2)
+  sortOrder  Int      @default(0)
+
+  @@unique([menuItemId, label])
+  @@map("menu_item_options")
+}
+
+// ---------------------------------------------------------------------------
+// Customers (implicit — no accounts/auth; upserted by phone number when an
+// order or reservation comes in, so guest checkout keeps working exactly as
+// it does today while still giving the future admin dashboard a real
+// customer table to report on).
+// ---------------------------------------------------------------------------
+
+model Customer {
+  id           String        @id @default(cuid())
+  name         String
+  phone        String        @unique
+  email        String?
+  orders       Order[]
+  reservations Reservation[]
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
+
+  @@map("customers")
+}
+
+// ---------------------------------------------------------------------------
+// Orders
+// ---------------------------------------------------------------------------
+
+enum OrderType {
+  pickup
+  delivery
+}
+
+enum OrderStatus {
+  PENDING
+  CONFIRMED
+  PREPARING
+  READY
+  OUT_FOR_DELIVERY
+  COMPLETED
+  CANCELLED
+}
+
+model Order {
+  id                  String      @id
+  customerId          String?
+  customer            Customer?   @relation(fields: [customerId], references: [id], onDelete: SetNull)
+  customerName        String
+  phone               String
+  email               String?
+  items               OrderItem[]
+  subtotal            Decimal     @db.Decimal(10, 2)
+  deliveryFee         Decimal     @default(0) @db.Decimal(10, 2)
+  total               Decimal     @db.Decimal(10, 2)
+  orderType           OrderType
+  deliveryAddress     String?
+  specialInstructions String?
+  status              OrderStatus @default(PENDING)
+  createdAt           DateTime    @default(now())
+  updatedAt           DateTime    @updatedAt
+
+  @@index([status])
+  @@index([createdAt])
+  @@map("orders")
+}
+
+model OrderItem {
+  id       Int      @id @default(autoincrement())
+  orderId  String
+  order    Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  // Nullable + SetNull on purpose: deleting/editing a menu item must never
+  // corrupt or cascade-delete a historical order line. Everything needed to
+  // redisplay the line is already snapshotted below.
+  menuItemId          Int?
+  menuItem            MenuItem? @relation(fields: [menuItemId], references: [id], onDelete: SetNull)
+  itemNameSnapshot    String
+  optionLabelSnapshot String?
+  unitPrice           Decimal   @db.Decimal(10, 2)
+  quantity            Int
+  subtotal            Decimal   @db.Decimal(10, 2)
+
+  @@map("order_items")
+}
+
+// ---------------------------------------------------------------------------
+// Reservations
+// ---------------------------------------------------------------------------
+
+enum ReservationStatus {
+  PENDING
+  CONFIRMED
+  CANCELLED
+  COMPLETED
+}
+
+model Reservation {
+  id           String            @id
+  customerId   String?
+  customer     Customer?         @relation(fields: [customerId], references: [id], onDelete: SetNull)
+  customerName String
+  phone        String
+  email        String?
+  // Kept as plain strings ("2026-09-25" / "19:00"), matching the frontend's
+  // own <input type="date">/<input type="time"> values exactly and the Zod
+  // validation already applied at the API boundary — avoids a
+  // Date-object/timezone round-trip changing the API's response shape.
+  date            String
+  time            String
+  guests          String
+  specialRequests String?
+  status          ReservationStatus @default(PENDING)
+  createdAt       DateTime          @default(now())
+  updatedAt       DateTime          @updatedAt
+
+  @@index([date])
+  @@index([status])
+  @@map("reservations")
+}
+
+// ---------------------------------------------------------------------------
+// Admin (Phase 3 — dashboard authentication)
+// ---------------------------------------------------------------------------
+
+model AdminUser {
+  id           String   @id @default(cuid())
+  email        String   @unique
+  passwordHash String
+  name         String
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@map("admin_users")
+}

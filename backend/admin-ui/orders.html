@@ -1,0 +1,256 @@
+<!DOCTYPE html>
+<html lang="en" class="scroll-smooth">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Orders | Grill Out Admin</title>
+<meta name="robots" content="noindex, nofollow" />
+
+<script src="https://cdn.tailwindcss.com"></script>
+<script>
+  tailwind.config = {
+    theme: {
+      extend: {
+        colors: {
+          charcoal: "#121212",
+          charcoal2: "#1a1a1a",
+          flame: { DEFAULT: "#FF6B00", light: "#FF8A3D", dark: "#CC5500" },
+          ember: "#E63946",
+          amber: { DEFAULT: "#FFB800" },
+        },
+        fontFamily: {
+          display: ["'Bebas Neue'", "sans-serif"],
+          sans: ["'Poppins'", "sans-serif"],
+        },
+      },
+    },
+  };
+</script>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Poppins:wght@300;400;500;600;700;800&display=swap');
+  body { font-family: 'Poppins', sans-serif; }
+</style>
+</head>
+<body class="bg-charcoal text-white">
+
+<div id="admin-shell"></div>
+
+<script src="shared/admin.js"></script>
+<script>
+  const ORDER_STATUSES = ["PENDING", "CONFIRMED", "PREPARING", "READY", "OUT_FOR_DELIVERY", "COMPLETED", "CANCELLED"];
+  const state = { page: 1, status: "", orderType: "", search: "" };
+
+  function renderPage() {
+    document.getElementById("page-content").innerHTML = `
+      <div class="mb-4 flex flex-wrap items-center gap-3">
+        <input id="f-search" type="search" aria-label="Search orders" placeholder="Search order id, name, or phone…"
+          class="w-full max-w-xs rounded-xl border border-white/10 bg-charcoal2 px-4 py-2 text-sm outline-none focus:border-flame sm:w-auto" />
+        <select id="f-status" aria-label="Filter by status" class="rounded-xl border border-white/10 bg-charcoal2 px-3 py-2 text-sm outline-none focus:border-flame">
+          <option value="">All statuses</option>
+          ${ORDER_STATUSES.map((s) => `<option value="${s}">${s.replace(/_/g, " ")}</option>`).join("")}
+        </select>
+        <select id="f-type" aria-label="Filter by order type" class="rounded-xl border border-white/10 bg-charcoal2 px-3 py-2 text-sm outline-none focus:border-flame">
+          <option value="">All types</option>
+          <option value="pickup">Pickup</option>
+          <option value="delivery">Delivery</option>
+        </select>
+      </div>
+
+      <div class="overflow-x-auto rounded-2xl border border-white/10 bg-charcoal2">
+        <table class="w-full text-left text-sm">
+          <thead class="border-b border-white/10 text-xs uppercase tracking-wide text-gray-500">
+            <tr>
+              <th class="px-4 py-3">Order</th>
+              <th class="px-4 py-3">Customer</th>
+              <th class="px-4 py-3">Type</th>
+              <th class="px-4 py-3">Items</th>
+              <th class="px-4 py-3">Total</th>
+              <th class="px-4 py-3">Status</th>
+              <th class="px-4 py-3">Placed</th>
+              <th class="px-4 py-3"></th>
+            </tr>
+          </thead>
+          <tbody id="orders-tbody"></tbody>
+        </table>
+      </div>
+      <div id="pagination-host"></div>
+    `;
+
+    document.getElementById("f-search").addEventListener("input", debounce((e) => {
+      state.search = e.target.value.trim();
+      state.page = 1;
+      load();
+    }));
+    document.getElementById("f-status").addEventListener("change", (e) => {
+      state.status = e.target.value;
+      state.page = 1;
+      load();
+    });
+    document.getElementById("f-type").addEventListener("change", (e) => {
+      state.orderType = e.target.value;
+      state.page = 1;
+      load();
+    });
+  }
+
+  function buildQuery() {
+    const params = new URLSearchParams({ page: state.page, limit: 20 });
+    if (state.status) params.set("status", state.status);
+    if (state.orderType) params.set("orderType", state.orderType);
+    if (state.search) params.set("search", state.search);
+    return params.toString();
+  }
+
+  async function load() {
+    const tbody = document.getElementById("orders-tbody");
+    tbody.innerHTML = loadingRow(8);
+    try {
+      const { data } = await AdminAPI.get(`/orders?${buildQuery()}`);
+      renderRows(data);
+    } catch (err) {
+      tbody.innerHTML = errorRow(8, `Failed to load orders: ${err.message}`);
+    }
+  }
+
+  function renderRows(result) {
+    const tbody = document.getElementById("orders-tbody");
+    tbody.innerHTML = "";
+    if (result.items.length === 0) {
+      tbody.innerHTML = emptyRow(8, "No orders match these filters.");
+    } else {
+      result.items.forEach((o) => {
+        const tr = document.createElement("tr");
+        tr.className = "border-b border-white/5 last:border-0 hover:bg-white/[0.03]";
+        tr.innerHTML = `
+          <td class="px-4 py-3 font-mono text-xs text-gray-400">${o.id}</td>
+          <td class="px-4 py-3">
+            <p class="font-medium">${o.customerName}</p>
+            <p class="text-xs text-gray-500">${o.phone}</p>
+          </td>
+          <td class="px-4 py-3 capitalize text-gray-300">${o.orderType}</td>
+          <td class="px-4 py-3 text-gray-300">${o.itemCount}</td>
+          <td class="px-4 py-3 font-medium">${formatMoney(o.total)}</td>
+          <td class="px-4 py-3">${statusBadge(o.status, ORDER_STATUS_STYLES)}</td>
+          <td class="px-4 py-3 text-xs text-gray-500">${formatDate(o.createdAt)}</td>
+          <td class="px-4 py-3 text-right">
+            <button data-id="${o.id}" class="view-btn rounded-full border border-white/10 px-3 py-1.5 text-xs font-semibold text-gray-300 hover:border-flame hover:text-flame">View</button>
+          </td>`;
+        tbody.appendChild(tr);
+      });
+      tbody.querySelectorAll(".view-btn").forEach((btn) =>
+        btn.addEventListener("click", () => openDetail(btn.dataset.id))
+      );
+    }
+
+    const host = document.getElementById("pagination-host");
+    host.innerHTML = "";
+    host.appendChild(paginationControls(result, (p) => { state.page = p; load(); }));
+  }
+
+  const NEXT_STATUS = {
+    PENDING: ["CONFIRMED", "CANCELLED"],
+    CONFIRMED: ["PREPARING", "CANCELLED"],
+    PREPARING: ["READY"],
+    READY: ["OUT_FOR_DELIVERY", "COMPLETED"],
+    OUT_FOR_DELIVERY: ["COMPLETED"],
+    COMPLETED: [],
+    CANCELLED: [],
+  };
+
+  async function openDetail(id) {
+    const overlay = document.createElement("div");
+    overlay.className = "fixed inset-0 z-[105] flex items-start justify-center overflow-y-auto bg-black/70 p-4 sm:items-center";
+    overlay.innerHTML = `
+      <div class="my-8 w-full max-w-lg rounded-2xl border border-white/10 bg-charcoal2 p-6">
+        <div class="flex items-start justify-between">
+          <h2 class="font-display text-2xl tracking-wide">Order ${id}</h2>
+          <button data-close class="rounded-lg p-1 text-gray-400 hover:text-white">${icon("x")}</button>
+        </div>
+        <div id="detail-body" class="mt-4 text-sm text-gray-400">Loading…</div>
+      </div>`;
+    document.body.appendChild(overlay);
+    overlay.addEventListener("click", (e) => { if (e.target === overlay) overlay.remove(); });
+    overlay.querySelector("[data-close]").addEventListener("click", () => overlay.remove());
+
+    try {
+      const { data: order } = await AdminAPI.get(`/orders/${id}`);
+      const body = overlay.querySelector("#detail-body");
+      const nextOptions = NEXT_STATUS[order.status] || [];
+      body.innerHTML = `
+        <div class="flex items-center justify-between">
+          <div>
+            <p class="font-medium text-white">${order.customerName}</p>
+            <p class="text-xs text-gray-500">${order.phone}${order.email ? " · " + order.email : ""}</p>
+          </div>
+          ${statusBadge(order.status, ORDER_STATUS_STYLES)}
+        </div>
+        <div class="mt-4 rounded-xl border border-white/5 bg-charcoal p-3">
+          <p class="text-xs uppercase tracking-wide text-gray-500">${order.orderType}${order.deliveryAddress ? " · " + order.deliveryAddress : ""}</p>
+          ${order.specialInstructions ? `<p class="mt-1 text-xs text-gray-400">Note: ${order.specialInstructions}</p>` : ""}
+        </div>
+        <div class="mt-4 divide-y divide-white/5 rounded-xl border border-white/5">
+          ${order.items
+            .map(
+              (line) => `
+            <div class="flex items-center justify-between px-3 py-2 text-sm">
+              <span>${line.quantity}× ${line.name}${line.optionLabel ? ` (${line.optionLabel})` : ""}</span>
+              <span class="text-gray-400">${formatMoney(line.subtotal)}</span>
+            </div>`
+            )
+            .join("")}
+        </div>
+        <div class="mt-4 space-y-1 text-sm">
+          <div class="flex justify-between text-gray-400"><span>Subtotal</span><span>${formatMoney(order.subtotal)}</span></div>
+          <div class="flex justify-between text-gray-400"><span>Delivery Fee</span><span>${formatMoney(order.deliveryFee)}</span></div>
+          <div class="flex justify-between font-display text-lg text-flame"><span>Total</span><span>${formatMoney(order.total)}</span></div>
+        </div>
+        ${
+          nextOptions.length
+            ? `<div class="mt-5 flex flex-wrap gap-2">
+                ${nextOptions
+                  .map(
+                    (s) =>
+                      `<button data-status="${s}" class="status-btn rounded-full border border-white/10 px-3.5 py-1.5 text-xs font-semibold hover:border-flame hover:text-flame">Mark as ${s.replace(/_/g, " ")}</button>`
+                  )
+                  .join("")}
+              </div>`
+            : `<p class="mt-5 text-xs text-gray-600">This order is in a final state and can no longer be updated.</p>`
+        }
+      `;
+
+      body.querySelectorAll(".status-btn").forEach((btn) =>
+        btn.addEventListener("click", async () => {
+          const newStatus = btn.dataset.status;
+          const danger = newStatus === "CANCELLED";
+          const ok = await confirmDialog({
+            title: danger ? "Cancel order?" : "Update order status",
+            message: `Mark order ${id} as ${newStatus.replace(/_/g, " ")}?`,
+            confirmLabel: danger ? "Cancel Order" : "Confirm",
+            danger,
+          });
+          if (!ok) return;
+          try {
+            await AdminAPI.patch(`/orders/${id}/status`, { status: newStatus });
+            showToast(`Order ${id} marked as ${newStatus.replace(/_/g, " ")}`);
+            overlay.remove();
+            load();
+          } catch (err) {
+            showToast(err.message, "error");
+          }
+        })
+      );
+    } catch (err) {
+      overlay.querySelector("#detail-body").innerHTML = `<p class="text-red-400">Failed to load order: ${err.message}</p>`;
+    }
+  }
+
+  (async () => {
+    const profile = await mountShell("orders", "Orders");
+    if (!profile) return;
+    renderPage();
+    onRefresh(load);
+    load();
+  })();
+</script>
+</body>
+</html>

@@ -1,0 +1,125 @@
+<!DOCTYPE html>
+<html lang="en" class="scroll-smooth">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Customers | Grill Out Admin</title>
+<meta name="robots" content="noindex, nofollow" />
+
+<script src="https://cdn.tailwindcss.com"></script>
+<script>
+  tailwind.config = {
+    theme: {
+      extend: {
+        colors: {
+          charcoal: "#121212",
+          charcoal2: "#1a1a1a",
+          flame: { DEFAULT: "#FF6B00", light: "#FF8A3D", dark: "#CC5500" },
+          ember: "#E63946",
+          amber: { DEFAULT: "#FFB800" },
+        },
+        fontFamily: {
+          display: ["'Bebas Neue'", "sans-serif"],
+          sans: ["'Poppins'", "sans-serif"],
+        },
+      },
+    },
+  };
+</script>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Poppins:wght@300;400;500;600;700;800&display=swap');
+  body { font-family: 'Poppins', sans-serif; }
+</style>
+</head>
+<body class="bg-charcoal text-white">
+
+<div id="admin-shell"></div>
+
+<script src="shared/admin.js"></script>
+<script>
+  const state = { page: 1, search: "" };
+
+  function renderPage() {
+    document.getElementById("page-content").innerHTML = `
+      <div class="mb-4">
+        <input id="f-search" type="search" aria-label="Search customers" placeholder="Search name, phone, or email…"
+          class="w-full max-w-xs rounded-xl border border-white/10 bg-charcoal2 px-4 py-2 text-sm outline-none focus:border-flame" />
+      </div>
+
+      <div class="overflow-x-auto rounded-2xl border border-white/10 bg-charcoal2">
+        <table class="w-full text-left text-sm">
+          <thead class="border-b border-white/10 text-xs uppercase tracking-wide text-gray-500">
+            <tr>
+              <th class="px-4 py-3">Customer</th>
+              <th class="px-4 py-3">Orders</th>
+              <th class="px-4 py-3">Total Spent</th>
+              <th class="px-4 py-3">Last Order</th>
+              <th class="px-4 py-3">Reservations</th>
+              <th class="px-4 py-3">Customer Since</th>
+            </tr>
+          </thead>
+          <tbody id="cust-tbody"></tbody>
+        </table>
+      </div>
+      <div id="pagination-host"></div>
+    `;
+
+    document.getElementById("f-search").addEventListener("input", debounce((e) => {
+      state.search = e.target.value.trim();
+      state.page = 1;
+      load();
+    }));
+  }
+
+  async function load() {
+    const tbody = document.getElementById("cust-tbody");
+    tbody.innerHTML = loadingRow(6);
+    try {
+      const params = new URLSearchParams({ page: state.page, limit: 20 });
+      if (state.search) params.set("search", state.search);
+      const { data } = await AdminAPI.get(`/customers?${params}`);
+      renderRows(data);
+    } catch (err) {
+      tbody.innerHTML = errorRow(6, `Failed to load customers: ${err.message}`);
+    }
+  }
+
+  function renderRows(result) {
+    const tbody = document.getElementById("cust-tbody");
+    tbody.innerHTML = "";
+    if (result.items.length === 0) {
+      tbody.innerHTML = emptyRow(6, "No customers match this search.");
+      document.getElementById("pagination-host").innerHTML = "";
+      return;
+    }
+    result.items.forEach((c) => {
+      const tr = document.createElement("tr");
+      tr.className = "border-b border-white/5 last:border-0 hover:bg-white/[0.03]";
+      tr.innerHTML = `
+        <td class="px-4 py-3">
+          <p class="font-medium">${c.name}</p>
+          <p class="text-xs text-gray-500">${c.phone}${c.email ? " · " + c.email : ""}</p>
+        </td>
+        <td class="px-4 py-3 text-gray-300">${c.totalOrders}</td>
+        <td class="px-4 py-3 font-medium">${formatMoney(c.totalSpent)}</td>
+        <td class="px-4 py-3 text-xs text-gray-500">${c.lastOrderAt ? formatDate(c.lastOrderAt) : "—"}</td>
+        <td class="px-4 py-3 text-gray-300">${c.reservationCount}</td>
+        <td class="px-4 py-3 text-xs text-gray-500">${formatDate(c.createdAt)}</td>`;
+      tbody.appendChild(tr);
+    });
+
+    const host = document.getElementById("pagination-host");
+    host.innerHTML = "";
+    host.appendChild(paginationControls(result, (p) => { state.page = p; load(); }));
+  }
+
+  (async () => {
+    const profile = await mountShell("customers", "Customers");
+    if (!profile) return;
+    renderPage();
+    onRefresh(load);
+    load();
+  })();
+</script>
+</body>
+</html>

@@ -1,0 +1,199 @@
+/**
+ * Admin business logic, grouped by resource as named exports (see
+ * src/types/admin.types.ts for why). Each service depends only on
+ * repository interfaces/functions — reusing the existing public
+ * `orderRepository`/`reservationRepository` for single-record lookups and
+ * status writes rather than duplicating them.
+ */
+import {
+  adminCustomerRepository,
+  adminDashboardRepository,
+  adminMenuRepository,
+  adminOrderRepository,
+  adminReservationRepository,
+  adminUserRepository,
+  type AdminCustomerListParams,
+  type AdminOrderListParams,
+  type AdminReservationListParams,
+  type CreateCategoryData,
+  type CreateMenuItemData,
+  type UpdateCategoryData,
+  type UpdateMenuItemData,
+} from "../repositories/admin.repository";
+import { orderRepository } from "../repositories/order.repository";
+import { reservationRepository } from "../repositories/reservation.repository";
+import { ApiError } from "../utils/ApiError";
+import { signAdminToken } from "../utils/adminToken";
+import { hashPassword, verifyPassword } from "../utils/password";
+import { slugify } from "../utils/slugify";
+import type { AdminLoginInput } from "../validators/admin.validator";
+import type { OrderStatus } from "../types/order.types";
+import type { ReservationStatus } from "../types/reservation.types";
+
+// ---------------------------------------------------------------------------
+// Auth
+// ---------------------------------------------------------------------------
+
+const ORDER_TERMINAL: OrderStatus[] = ["COMPLETED", "CANCELLED"];
+const ORDER_CANCELLABLE_FROM: OrderStatus[] = ["PENDING", "CONFIRMED"];
+const RESERVATION_TERMINAL: ReservationStatus[] = ["COMPLETED", "CANCELLED"];
+const RESERVATION_CANCELLABLE_FROM: ReservationStatus[] = ["PENDING", "CONFIRMED"];
+
+export const adminAuthService = {
+  async login(input: AdminLoginInput): Promise<{ token: string; profile: { id: string; email: string; name: string } }> {
+    const admin = await adminUserRepository.findByEmail(input.email);
+    // Same generic message whether the email doesn't exist or the password
+    // is wrong — never reveal which one it was.
+    if (!admin) throw ApiError.badRequest("Invalid email or password");
+
+    const valid = await verifyPassword(input.password, admin.passwordHash);
+    if (!valid) throw ApiError.badRequest("Invalid email or password");
+
+    const token = signAdminToken({ sub: admin.id, email: admin.email });
+    return { token, profile: { id: admin.id, email: admin.email, name: admin.name } };
+  },
+
+  async getProfile(adminId: string) {
+    const admin = await adminUserRepository.findById(adminId);
+    if (!admin) throw ApiError.notFound("Admin account no longer exists");
+    return { id: admin.id, email: admin.email, name: admin.name };
+  },
+};
+
+// ---------------------------------------------------------------------------
+// Orders
+// ---------------------------------------------------------------------------
+
+export const adminOrderService = {
+  list(params: AdminOrderListParams) {
+    return adminOrderRepository.list(params);
+  },
+
+  async getById(id: string) {
+    const order = await orderRepository.findById(id);
+    if (!order) throw ApiError.notFound(`Order ${id} was not found`);
+    return order;
+  },
+
+  async updateStatus(id: string, nextStatus: OrderStatus) {
+    const order = await this.getById(id);
+
+    if (ORDER_TERMINAL.includes(order.status)) {
+      throw ApiError.conflict(`Order ${id} is already "${order.status}" and cannot be changed further`);
+    }
+    if (nextStatus === "CANCELLED" && !ORDER_CANCELLABLE_FROM.includes(order.status)) {
+      throw ApiError.conflict(`Order ${id} can no longer be cancelled from status "${order.status}"`);
+    }
+
+    return orderRepository.updateStatus(id, nextStatus);
+  },
+};
+
+// ---------------------------------------------------------------------------
+// Reservations
+// ---------------------------------------------------------------------------
+
+export const adminReservationService = {
+  list(params: AdminReservationListParams) {
+    return adminReservationRepository.list(params);
+  },
+
+  async getById(id: string) {
+    const reservation = await reservationRepository.findById(id);
+    if (!reservation) throw ApiError.notFound(`Reservation ${id} was not found`);
+    return reservation;
+  },
+
+  async updateStatus(id: string, nextStatus: ReservationStatus) {
+    const reservation = await this.getById(id);
+
+    if (RESERVATION_TERMINAL.includes(reservation.status)) {
+      throw ApiError.conflict(`Reservation ${id} is already "${reservation.status}" and cannot be changed further`);
+    }
+    if (nextStatus === "CANCELLED" && !RESERVATION_CANCELLABLE_FROM.includes(reservation.status)) {
+      throw ApiError.conflict(`Reservation ${id} can no longer be cancelled from status "${reservation.status}"`);
+    }
+
+    return reservationRepository.updateStatus(id, nextStatus);
+  },
+};
+
+// ---------------------------------------------------------------------------
+// Customers
+// ---------------------------------------------------------------------------
+
+export const adminCustomerService = {
+  list(params: AdminCustomerListParams) {
+    return adminCustomerRepository.list(params);
+  },
+};
+
+// ---------------------------------------------------------------------------
+// Menu management
+// ---------------------------------------------------------------------------
+
+export const adminMenuService = {
+  listCategories() {
+    return adminMenuRepository.listCategoriesFull();
+  },
+
+  async createCategory(data: { name: string; description?: string; image?: string; sortOrder?: number }) {
+    const slug = slugify(data.name);
+    const existing = await adminMenuRepository.listCategoriesAdmin();
+    if (existing.some((c) => c.key === slug)) {
+      throw ApiError.badRequest(`A category with slug "${slug}" already exists`);
+    }
+    const created: CreateCategoryData = { ...data, slug };
+    return adminMenuRepository.createCategory(created);
+  },
+
+  updateCategory(id: number, data: UpdateCategoryData) {
+    return adminMenuRepository.updateCategory(id, data);
+  },
+
+  deleteCategory(id: number) {
+    return adminMenuRepository.deleteOrDeactivateCategory(id);
+  },
+
+  listItems() {
+    return adminMenuRepository.listItemsAdmin();
+  },
+
+  async createItem(data: Omit<CreateMenuItemData, "slug">) {
+    // Two dishes could share a display name in theory; only the generated
+    // slug (used as a stable, human-readable key) needs to stay unique.
+    const existing = await adminMenuRepository.listItemsAdmin();
+    const existingSlugs = new Set(existing.map((i) => slugify(i.name)));
+    let slug = slugify(data.name);
+    let suffix = 2;
+    while (existingSlugs.has(slug) && suffix < 50) {
+      slug = `${slugify(data.name)}-${suffix++}`;
+    }
+    return adminMenuRepository.createItem({ ...data, slug });
+  },
+
+  updateItem(id: number, data: UpdateMenuItemData) {
+    return adminMenuRepository.updateItem(id, data);
+  },
+
+  deleteItem(id: number) {
+    return adminMenuRepository.deleteOrDeactivateItem(id);
+  },
+};
+
+// ---------------------------------------------------------------------------
+// Dashboard
+// ---------------------------------------------------------------------------
+
+export const adminDashboardService = {
+  async getOverview() {
+    const [stats, popularItems] = await Promise.all([
+      adminDashboardRepository.getStats(),
+      adminDashboardRepository.getPopularItems(5),
+    ]);
+    return { stats, popularItems };
+  },
+};
+
+// Re-exported for the seed script (bootstraps the first admin user).
+export { hashPassword };

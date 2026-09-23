@@ -1,39 +1,82 @@
-import { CATEGORIES, MENU_ITEMS } from "../data/menu.data";
+import type { MenuItem as PrismaMenuItem, MenuItemOption as PrismaMenuItemOption, MenuCategory } from "@prisma/client";
+import { prisma } from "../config/prisma";
 import type { Category, MenuItem } from "../types/menu.types";
 
 /**
- * Repository contract for menu data. Phase 1 implements this over the
- * static, frontend-derived array in data/menu.data.ts. Phase 2 swaps in an
- * implementation backed by a real table/ORM — the interface (and therefore
- * every service/controller that depends on it) does not change.
+ * Repository contract for menu data. Phase 1 implemented this over a static,
+ * frontend-derived in-memory array. Phase 2 (this file) backs it with
+ * PostgreSQL via Prisma — the interface, and therefore every service and
+ * controller built on it, is unchanged.
  */
 export interface MenuRepository {
   findAll(): Promise<MenuItem[]>;
   findById(id: number): Promise<MenuItem | undefined>;
-  findByCategory(category: string): Promise<MenuItem[]>;
+  findByCategory(categorySlug: string): Promise<MenuItem[]>;
   listCategories(): Promise<Category[]>;
 }
 
-export class InMemoryMenuRepository implements MenuRepository {
-  // Cloned so callers can never mutate the seed data by mutating a returned array/object.
-  private readonly items: MenuItem[] = MENU_ITEMS.map((item) => ({ ...item }));
-  private readonly categories: Category[] = CATEGORIES.map((c) => ({ ...c }));
+type PrismaMenuItemWithOptions = PrismaMenuItem & {
+  options: PrismaMenuItemOption[];
+  category: MenuCategory;
+};
 
+// Prisma returns Decimal for money columns and Date for timestamps; the
+// domain type promises plain `number` / ISO `string` (see menu.types.ts),
+// so every read maps through here rather than leaking Prisma's types
+// upward through services/controllers/API responses.
+function toDomainMenuItem(row: PrismaMenuItemWithOptions): MenuItem {
+  const options = row.options
+    .sort((a, b) => a.sortOrder - b.sortOrder)
+    .map((o) => ({ label: o.label, price: Number(o.price) }));
+
+  return {
+    id: row.id,
+    name: row.name,
+    description: row.description,
+    price: Number(row.price),
+    category: row.category.slug,
+    image: row.image,
+    available: row.isAvailable,
+    featured: row.isFeatured,
+    tags: row.tags,
+    ...(options.length > 0 ? { options } : {}),
+    createdAt: row.createdAt.toISOString(),
+    updatedAt: row.updatedAt.toISOString(),
+  };
+}
+
+const includeRelations = { options: true, category: true } as const;
+
+export class PrismaMenuRepository implements MenuRepository {
   async findAll(): Promise<MenuItem[]> {
-    return [...this.items];
+    const rows = await prisma.menuItem.findMany({
+      include: includeRelations,
+      orderBy: [{ categoryId: "asc" }, { sortOrder: "asc" }],
+    });
+    return rows.map(toDomainMenuItem);
   }
 
   async findById(id: number): Promise<MenuItem | undefined> {
-    return this.items.find((item) => item.id === id);
+    const row = await prisma.menuItem.findUnique({ where: { id }, include: includeRelations });
+    return row ? toDomainMenuItem(row) : undefined;
   }
 
-  async findByCategory(category: string): Promise<MenuItem[]> {
-    return this.items.filter((item) => item.category === category);
+  async findByCategory(categorySlug: string): Promise<MenuItem[]> {
+    const rows = await prisma.menuItem.findMany({
+      where: { category: { slug: categorySlug } },
+      include: includeRelations,
+      orderBy: { sortOrder: "asc" },
+    });
+    return rows.map(toDomainMenuItem);
   }
 
   async listCategories(): Promise<Category[]> {
-    return [...this.categories];
+    const rows = await prisma.menuCategory.findMany({
+      where: { isActive: true },
+      orderBy: { sortOrder: "asc" },
+    });
+    return rows.map((c) => ({ key: c.slug, label: c.name }));
   }
 }
 
-export const menuRepository: MenuRepository = new InMemoryMenuRepository();
+export const menuRepository: MenuRepository = new PrismaMenuRepository();

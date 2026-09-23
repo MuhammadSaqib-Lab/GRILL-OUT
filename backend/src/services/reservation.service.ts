@@ -7,21 +7,15 @@ const CANCELLABLE_STATUSES: ReservationStatus[] = ["PENDING", "CONFIRMED"];
 
 export const reservationService = {
   async createReservation(input: CreateReservationInput): Promise<Reservation> {
-    const now = new Date().toISOString();
-    const reservation: Reservation = {
-      id: reservationRepository.nextId(),
+    return reservationRepository.createReservation({
       customerName: input.customerName,
       phone: input.phone,
-      ...(input.email ? { email: input.email } : {}),
+      email: input.email,
       date: input.date,
       time: input.time,
       guests: input.guests,
-      ...(input.specialRequests ? { specialRequests: input.specialRequests } : {}),
-      status: "PENDING",
-      createdAt: now,
-      updatedAt: now,
-    };
-    return reservationRepository.create(reservation);
+      specialRequests: input.specialRequests,
+    });
   },
 
   async getReservationById(id: string): Promise<Reservation> {
@@ -37,8 +31,6 @@ export const reservationService = {
     if (!CANCELLABLE_STATUSES.includes(reservation.status)) {
       throw ApiError.conflict(`Reservation ${id} is "${reservation.status}" and can no longer be cancelled`);
     }
-    reservation.status = "CANCELLED";
-    reservation.updatedAt = new Date().toISOString();
-    return reservationRepository.update(reservation);
+    return reservationRepository.updateStatus(id, "CANCELLED");
   },
 };

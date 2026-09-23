@@ -26,4 +26,8 @@ export class ApiError extends Error {
   static conflict(message: string) {
     return new ApiError(409, "CONFLICT", message);
   }
+
+  static unauthorized(message: string) {
+    return new ApiError(401, "UNAUTHORIZED", message);
+  }
 }

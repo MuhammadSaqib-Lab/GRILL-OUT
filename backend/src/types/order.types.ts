@@ -19,12 +19,12 @@ export interface OrderLineInput {
 
 /** A priced, resolved line as stored on the order. */
 export interface OrderLine {
-  menuItemId: number;
+  menuItemId: number | null;
   name: string;
   optionLabel?: string;
   unitPrice: number;
   quantity: number;
-  lineTotal: number;
+  subtotal: number;
 }
 
 export interface Order {
@@ -34,7 +34,7 @@ export interface Order {
   email?: string;
   items: OrderLine[];
   subtotal: number;
-  deliveryCharge: number;
+  deliveryFee: number;
   total: number;
   orderType: OrderType;
   deliveryAddress?: string;

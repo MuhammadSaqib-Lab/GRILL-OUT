@@ -1,5 +1,6 @@
 import { createApp } from "./app";
 import { env } from "./config/env";
+import { disconnectPrisma } from "./config/prisma";
 import { logger } from "./utils/logger";
 
 const app = createApp();
@@ -14,8 +15,12 @@ const server = app.listen(env.PORT, () => {
 function shutdown(signal: string) {
   logger.info(`${signal} received, shutting down gracefully`);
   server.close(() => {
-    logger.info("Server closed");
-    process.exit(0);
+    disconnectPrisma()
+      .catch((err) => logger.error("Error disconnecting Prisma", { message: String(err) }))
+      .finally(() => {
+        logger.info("Server closed");
+        process.exit(0);
+      });
   });
   // Don't hang forever waiting for in-flight requests.
   setTimeout(() => process.exit(1), 10_000).unref();

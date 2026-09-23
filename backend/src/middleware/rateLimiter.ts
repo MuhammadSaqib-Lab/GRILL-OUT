@@ -14,3 +14,15 @@ export const writeRateLimiter = rateLimit({
     sendError(res, 429, "RATE_LIMITED", "Too many requests — please try again later.");
   },
 });
+
+// Deliberately stricter and keyed only to the login endpoint — brute-forcing
+// the admin password is a much higher-value target than spamming an order.
+export const adminLoginRateLimiter = rateLimit({
+  windowMs: env.RATE_LIMIT_WINDOW_MS,
+  limit: env.ADMIN_LOGIN_RATE_LIMIT_MAX,
+  standardHeaders: true,
+  legacyHeaders: false,
+  handler: (_req, res) => {
+    sendError(res, 429, "RATE_LIMITED", "Too many login attempts — please try again later.");
+  },
+});

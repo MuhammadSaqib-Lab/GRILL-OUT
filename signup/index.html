@@ -1,0 +1,72 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Create Account | Grill Out</title>
+<meta name="description" content="Create a Grill Out account to order online and book tables." />
+<!-- Private, per-customer pages: never indexed. -->
+<meta name="robots" content="noindex, nofollow" />
+<meta name="theme-color" content="#121212" />
+<link rel="icon" href="/images/icons/favicon.svg" type="image/svg+xml" />
+<link rel="icon" href="/images/icons/favicon-32.png" type="image/png" sizes="32x32" />
+<link rel="apple-touch-icon" href="/images/icons/apple-touch-icon.png" />
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Poppins:wght@300;400;500;600;700&display=swap" />
+<link rel="stylesheet" href="/css/tailwind.css" />
+<link rel="stylesheet" href="/css/style.css" />
+</head>
+<body class="bg-charcoal font-sans text-white antialiased">
+<main class="mx-auto flex min-h-screen max-w-md flex-col justify-center px-4 py-10">
+  <div class="mb-8 text-center">
+    <a href="/" class="inline-flex items-center gap-2" aria-label="Grill Out — home">
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" class="h-8 w-8 text-flame" aria-hidden="true"><path d="M12.5 1.5c1 3-2 4.5-2 7.5a2.5 2.5 0 0 0 5 0c0-.6-.2-1.1-.5-1.6 2 1 3.5 3 3.5 5.6a6.5 6.5 0 1 1-13 0c0-4 2.5-6 4-8.5.7-1.1 1.3-2.1 3-3z"/></svg>
+        <span class="font-display text-2xl tracking-wider text-white">GRILL<span class="text-flame"> OUT</span></span>
+      </a>
+  </div>
+  <div class="rounded-3xl border border-white/5 bg-charcoal2 p-6 sm:p-8">
+    <h1 class="font-display text-4xl tracking-wide">Create Account</h1>
+    <p class="mt-1 text-sm text-gray-400">One account for your orders and table reservations.</p>
+    <div id="form-error" role="alert" tabindex="-1" class="mt-5 hidden rounded-xl border border-red-500/30 bg-red-500/10 px-4 py-3 text-sm text-red-400"></div>
+    <form id="signup-form" class="mt-6 space-y-4" novalidate>
+        <div>
+          <label for="name" class="mb-1.5 block text-sm font-medium text-gray-300">Full Name</label>
+          <input id="name" name="name" type="text" required autocomplete="name" maxlength="100"
+            aria-describedby="name-error"
+            class="w-full rounded-xl border border-white/10 bg-charcoal px-4 py-3 text-white placeholder-gray-500 outline-none transition focus:border-flame focus:ring-2 focus:ring-flame/30 aria-[invalid=true]:border-red-500" />
+          <p id="name-error" class="mt-1.5 hidden text-xs text-red-400"></p>
+        </div>
+        <div>
+          <label for="email" class="mb-1.5 block text-sm font-medium text-gray-300">Email</label>
+          <input id="email" name="email" type="email" required autocomplete="email" maxlength="254"
+            aria-describedby="email-error"
+            class="w-full rounded-xl border border-white/10 bg-charcoal px-4 py-3 text-white placeholder-gray-500 outline-none transition focus:border-flame focus:ring-2 focus:ring-flame/30 aria-[invalid=true]:border-red-500" />
+          <p id="email-error" class="mt-1.5 hidden text-xs text-red-400"></p>
+        </div>
+        <div>
+          <label for="password" class="mb-1.5 block text-sm font-medium text-gray-300">Password</label>
+          <input id="password" name="password" type="password" required autocomplete="new-password" maxlength="128" minlength="8"
+            aria-describedby="password-error"
+            class="w-full rounded-xl border border-white/10 bg-charcoal px-4 py-3 text-white placeholder-gray-500 outline-none transition focus:border-flame focus:ring-2 focus:ring-flame/30 aria-[invalid=true]:border-red-500" />
+          <p id="password-error" class="mt-1.5 hidden text-xs text-red-400"></p>
+        </div>
+        <p class="-mt-2 text-xs text-gray-500">At least 8 characters, with a letter and a number.</p>
+        <div>
+          <label for="confirmPassword" class="mb-1.5 block text-sm font-medium text-gray-300">Confirm Password</label>
+          <input id="confirmPassword" name="confirmPassword" type="password" required autocomplete="new-password" maxlength="128"
+            aria-describedby="confirmPassword-error"
+            class="w-full rounded-xl border border-white/10 bg-charcoal px-4 py-3 text-white placeholder-gray-500 outline-none transition focus:border-flame focus:ring-2 focus:ring-flame/30 aria-[invalid=true]:border-red-500" />
+          <p id="confirmPassword-error" class="mt-1.5 hidden text-xs text-red-400"></p>
+        </div>
+        <button type="submit" class="mt-2 w-full rounded-full bg-gradient-to-r from-flame to-ember px-8 py-3.5 text-sm font-semibold text-white shadow-lg shadow-flame/30 transition hover:shadow-flame/50 disabled:opacity-60"><span data-label>Create Account</span></button>
+    </form>
+  </div>
+  <p class="mt-6 text-center text-sm text-gray-400">Already have an account? <a data-switch-auth="login" href="/login/" class="font-semibold text-flame hover:text-flame-light">Log in</a></p>
+  <p class="mt-4 text-center text-xs text-gray-500"><a href="/" class="hover:text-flame">&larr; Back to Grill Out</a> &middot; &copy; <span id="year"></span> Grill Out</p>
+</main>
+<script src="/js/config.js"></script>
+<script src="/js/api.js"></script>
+<script src="/js/auth-pages.js"></script>
+</body>
+</html>

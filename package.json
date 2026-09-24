@@ -1,0 +1,15 @@
+{
+  "name": "grill-out-web",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Grill Out Restaurant — static public site + admin UI build tooling (CSS build, SEO file generation)",
+  "scripts": {
+    "build:css": "npm run build:css:public && npm run build:css:admin",
+    "build:css:public": "tailwindcss -c tailwind.public.config.js -i css/tailwind.input.css -o css/tailwind.css --minify",
+    "build:css:admin": "tailwindcss -c tailwind.admin.config.js -i css/tailwind.input.css -o backend/admin-ui/shared/admin.css --minify",
+    "seo": "node scripts/apply-seo.js"
+  },
+  "devDependencies": {
+    "tailwindcss": "3.4.17"
+  }
+}

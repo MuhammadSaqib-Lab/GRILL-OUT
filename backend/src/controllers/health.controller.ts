@@ -1,11 +1,8 @@
 import type { Request, Response } from "express";
-import { env } from "../config/env";
 import { prisma } from "../config/prisma";
 import { sendSuccess } from "../utils/apiResponse";
 import { asyncHandler } from "../utils/asyncHandler";
 import { logger } from "../utils/logger";
-
-const startedAt = Date.now();
 
 export const healthController = {
   // The server responding at all is "healthy" — a down database degrades
@@ -27,8 +24,6 @@ export const healthController = {
     sendSuccess(res, {
       status: database === "connected" ? "ok" : "degraded",
       database,
-      environment: env.NODE_ENV,
-      uptimeSeconds: Math.round((Date.now() - startedAt) / 1000),
       timestamp: new Date().toISOString(),
     });
   }),

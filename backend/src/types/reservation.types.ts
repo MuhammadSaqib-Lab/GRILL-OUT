@@ -15,6 +15,8 @@ export interface Reservation {
   time: string;
   guests: GuestBand;
   specialRequests?: string;
+  /** Optional note from the restaurant, tied to the current status. */
+  adminMessage?: string;
   status: ReservationStatus;
   createdAt: string;
   updatedAt: string;

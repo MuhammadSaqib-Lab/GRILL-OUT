@@ -1,0 +1,7 @@
+# Public pages are crawlable. The admin dashboard and API are private and
+# also protected by authentication + noindex headers (robots.txt is not security).
+User-agent: *
+Allow: /
+Disallow: /admin/
+Disallow: /api/
+Disallow: /internal/

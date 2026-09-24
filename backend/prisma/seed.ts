@@ -24,6 +24,15 @@ function slugify(name: string): string {
 }
 
 async function main() {
+  // The seed resets every menu item/category back to the source data and
+  // re-hashes the admin password. Fine for a fresh database; destructive on a
+  // live one where the owner has been editing prices and images.
+  if (env.isProduction && process.env.ALLOW_PRODUCTION_SEED !== "true") {
+    throw new Error(
+      "Refusing to seed in production: it would overwrite admin-edited menu data. Set ALLOW_PRODUCTION_SEED=true only for the very first deploy."
+    );
+  }
+
   console.log(`Seeding ${CATEGORIES.length} categories and ${MENU_ITEMS.length} menu items...`);
 
   const categoryIdBySlug = new Map<string, number>();

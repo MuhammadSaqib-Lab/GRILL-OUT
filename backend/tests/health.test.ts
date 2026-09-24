@@ -10,6 +10,8 @@ describe("GET /api/health", () => {
     expect(res.status).toBe(200);
     expect(res.body.success).toBe(true);
     expect(res.body.data.status).toBe("ok");
-    expect(typeof res.body.data.uptimeSeconds).toBe("number");
+    // Public endpoint: must not reveal environment, uptime, or connection details.
+    expect(res.body.data.environment).toBeUndefined();
+    expect(res.body.data.uptimeSeconds).toBeUndefined();
   });
 });

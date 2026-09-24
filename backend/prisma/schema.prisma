@@ -95,21 +95,36 @@ model MenuItemOption {
 }
 
 // ---------------------------------------------------------------------------
-// Customers (implicit — no accounts/auth; upserted by phone number when an
-// order or reservation comes in, so guest checkout keeps working exactly as
-// it does today while still giving the future admin dashboard a real
-// customer table to report on).
+// Customers
+//
+// Two kinds of row share this table:
+//  - Accounts: registered on the website. Have `loginEmail` + `passwordHash`.
+//    Every new order/reservation belongs to one of these.
+//  - Legacy guests: created by the old phone-number upsert (before accounts
+//    existed). They keep `phone`/`email` and their orders; they can't log in
+//    (no passwordHash) and are never merged into an account automatically,
+//    because that would let anyone who types an email address claim its old
+//    orders without proving they own it. See scripts/link-legacy-orders.ts
+//    for the explicit, operator-run way to link them.
 // ---------------------------------------------------------------------------
 
 model Customer {
-  id           String        @id @default(cuid())
-  name         String
-  phone        String        @unique
-  email        String?
-  orders       Order[]
-  reservations Reservation[]
-  createdAt    DateTime      @default(now())
-  updatedAt    DateTime      @updatedAt
+  id             String        @id @default(cuid())
+  name           String
+  // Nullable: a freshly registered account has no phone until they order.
+  // (Each order/reservation still stores the phone it was placed with.)
+  phone          String?       @unique
+  // Contact email as typed on legacy guest orders. Not unique, not for login.
+  email          String?
+  // Lower-cased login email. Unique; only set for accounts.
+  loginEmail     String?       @unique
+  passwordHash   String?
+  // Bumped on logout / password change so old session tokens stop working.
+  sessionVersion Int           @default(0)
+  orders         Order[]
+  reservations   Reservation[]
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
 
   @@map("customers")
 }
@@ -147,12 +162,17 @@ model Order {
   orderType           OrderType
   deliveryAddress     String?
   specialInstructions String?
+  // Optional note from the restaurant, written by an admin together with the
+  // most recent status change (confirmation note, cancellation reason, ...).
+  // Replaced on every status change, so it always belongs to the current status.
+  adminMessage        String?
   status              OrderStatus @default(PENDING)
   createdAt           DateTime    @default(now())
   updatedAt           DateTime    @updatedAt
 
   @@index([status])
   @@index([createdAt])
+  @@index([customerId, createdAt])
   @@map("orders")
 }
 
@@ -200,12 +220,16 @@ model Reservation {
   time            String
   guests          String
   specialRequests String?
+  // Optional note from the restaurant written with the latest status change
+  // (same rules as Order.adminMessage: replaced on every change).
+  adminMessage    String?
   status          ReservationStatus @default(PENDING)
   createdAt       DateTime          @default(now())
   updatedAt       DateTime          @updatedAt
 
   @@index([date])
   @@index([status])
+  @@index([customerId, createdAt])
   @@map("reservations")
 }
 
@@ -218,6 +242,10 @@ model AdminUser {
   email        String   @unique
   passwordHash String
   name         String
+  // Embedded in every session token and checked on each request. Bumped on
+  // logout so the old token stops working immediately, instead of staying
+  // valid until it expires on its own.
+  sessionVersion Int     @default(0)
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 

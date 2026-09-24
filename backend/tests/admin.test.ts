@@ -3,6 +3,8 @@ import { beforeAll, describe, expect, it } from "vitest";
 import { createApp } from "../src/app";
 import { env } from "../src/config/env";
 import { prisma } from "../src/config/prisma";
+import { hashPassword } from "../src/utils/password";
+import { orderBody, registerCustomer, reservationBody, uniquePhone, type TestCustomer } from "./helpers";
 
 const app = createApp();
 
@@ -17,19 +19,18 @@ function postLogin(agent: request.Agent | ReturnType<typeof request>, body: Reco
   return agent.post("/api/admin/auth/login").send(body);
 }
 
-function uniquePhone() {
-  return `03${Math.floor(100000000 + Math.random() * 899999999)}`;
+// Ordering/reserving now needs an account. One shared customer covers most
+// tests; a test that cares about the customer's name registers its own.
+let sharedCustomer: TestCustomer | undefined;
+async function customerFor(name?: string): Promise<TestCustomer> {
+  if (name) return registerCustomer(app, { name });
+  sharedCustomer ??= await registerCustomer(app, { name: "Admin Test Customer" });
+  return sharedCustomer;
 }
 
 async function createPublicOrder(overrides: Partial<{ customerName: string; phone: string }> = {}) {
-  return request(app)
-    .post("/api/orders")
-    .send({
-      customerName: overrides.customerName ?? "Admin Test Customer",
-      phone: overrides.phone ?? uniquePhone(),
-      items: [{ menuItemId: 21, quantity: 1 }], // Ba Zinga, Rs. 599 flat
-      orderType: "pickup",
-    });
+  const c = await customerFor(overrides.customerName);
+  return c.agent.post("/api/orders").send(orderBody({ ...(overrides.phone ? { phone: overrides.phone } : {}), items: [{ menuItemId: 21, quantity: 1 }] }));
 }
 
 function tomorrow(): string {
@@ -39,28 +40,21 @@ function tomorrow(): string {
 }
 
 async function createPublicReservation(overrides: Partial<{ customerName: string; phone: string }> = {}) {
-  return request(app)
-    .post("/api/reservations")
-    .send({
-      customerName: overrides.customerName ?? "Admin Test Diner",
-      phone: overrides.phone ?? uniquePhone(),
-      date: tomorrow(),
-      time: "19:30",
-      guests: "3-4",
-    });
+  const c = await customerFor(overrides.customerName);
+  return c.agent.post("/api/reservations").send(reservationBody({ date: tomorrow(), ...(overrides.phone ? { phone: overrides.phone } : {}) }));
 }
 
 describe("admin auth", () => {
   it("rejects an email that has no admin account", async () => {
     const res = await postLogin(request(app), { email: "nobody@grillout.local", password: "whatever123" });
-    expect(res.status).toBe(400);
+    expect(res.status).toBe(401);
     expect(res.body.success).toBe(false);
     expect(res.body.error.message).toBe("Invalid email or password");
   });
 
   it("rejects the right email with the wrong password", async () => {
     const res = await postLogin(request(app), { email: env.ADMIN_EMAIL, password: "definitely-wrong" });
-    expect(res.status).toBe(400);
+    expect(res.status).toBe(401);
     expect(res.body.error.message).toBe("Invalid email or password");
   });
 
@@ -97,17 +91,27 @@ describe("admin auth", () => {
   });
 
   it("invalidates the session on logout", async () => {
-    const agent = request.agent(app);
-    await postLogin(agent, { email: env.ADMIN_EMAIL, password: env.ADMIN_PASSWORD });
+    // A throwaway admin: logging out bumps that account's session version, and
+    // doing it to the shared seeded admin would sign out every other test file
+    // that is mid-request with the seeded admin's cookie.
+    const temp = await prisma.adminUser.create({
+      data: { email: `logout-${Date.now()}@grillout.local`, passwordHash: await hashPassword(env.ADMIN_PASSWORD), name: "Temp" },
+    });
+    try {
+      const agent = request.agent(app);
+      await postLogin(agent, { email: temp.email, password: env.ADMIN_PASSWORD });
 
-    const before = await agent.get("/api/admin/auth/me");
-    expect(before.status).toBe(200);
+      const before = await agent.get("/api/admin/auth/me");
+      expect(before.status).toBe(200);
 
-    const logout = await agent.post("/api/admin/auth/logout");
-    expect(logout.status).toBe(200);
+      const logout = await agent.post("/api/admin/auth/logout");
+      expect(logout.status).toBe(200);
 
-    const after = await agent.get("/api/admin/auth/me");
-    expect(after.status).toBe(401);
+      const after = await agent.get("/api/admin/auth/me");
+      expect(after.status).toBe(401);
+    } finally {
+      await prisma.adminUser.delete({ where: { id: temp.id } });
+    }
   });
 });
 
@@ -193,7 +197,7 @@ describe("authenticated admin API", () => {
     it("refuses to move a cancelled order to any other status", async () => {
       const created = await createPublicOrder();
       const id = created.body.data.id;
-      await request(app).post(`/api/orders/${id}/cancel`);
+      await adminAgent.patch(`/api/admin/orders/${id}/status`).send({ status: "CANCELLED" });
 
       const res = await adminAgent.patch(`/api/admin/orders/${id}/status`).send({ status: "CONFIRMED" });
       expect(res.status).toBe(409);
@@ -353,7 +357,7 @@ describe("admin login rate limiting", () => {
     const remaining = env.ADMIN_LOGIN_RATE_LIMIT_MAX - loginAttempts;
     for (let i = 0; i < remaining; i++) {
       const res = await postLogin(request(app), { email: env.ADMIN_EMAIL, password: "still-wrong" });
-      expect(res.status).toBe(400);
+      expect(res.status).toBe(401);
     }
 
     const blocked = await postLogin(request(app), { email: env.ADMIN_EMAIL, password: "still-wrong" });

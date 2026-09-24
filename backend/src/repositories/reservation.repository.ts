@@ -4,6 +4,8 @@ import { prisma } from "../config/prisma";
 import type { GuestBand, Reservation, ReservationStatus } from "../types/reservation.types";
 
 export interface CreateReservationData {
+  /** The logged-in account this reservation belongs to (from the session, never the client). */
+  customerId: string;
   customerName: string;
   phone: string;
   email?: string;
@@ -16,7 +18,11 @@ export interface CreateReservationData {
 export interface ReservationRepository {
   createReservation(data: CreateReservationData): Promise<Reservation>;
   findById(id: string): Promise<Reservation | undefined>;
-  updateStatus(id: string, status: ReservationStatus): Promise<Reservation>;
+  /** Scoped by owner: someone else's reservation is indistinguishable from a missing one. */
+  findByIdForCustomer(id: string, customerId: string): Promise<Reservation | undefined>;
+  listByCustomer(customerId: string): Promise<Reservation[]>;
+  /** `adminMessage` replaces any previous message; null/undefined clears it. */
+  updateStatus(id: string, status: ReservationStatus, adminMessage?: string | null): Promise<Reservation>;
 }
 
 function toDomainReservation(row: PrismaReservation): Reservation {
@@ -29,6 +35,7 @@ function toDomainReservation(row: PrismaReservation): Reservation {
     time: row.time,
     guests: row.guests as GuestBand,
     ...(row.specialRequests ? { specialRequests: row.specialRequests } : {}),
+    ...(row.adminMessage ? { adminMessage: row.adminMessage } : {}),
     status: row.status,
     createdAt: row.createdAt.toISOString(),
     updatedAt: row.updatedAt.toISOString(),
@@ -37,30 +44,21 @@ function toDomainReservation(row: PrismaReservation): Reservation {
 
 export class PrismaReservationRepository implements ReservationRepository {
   async createReservation(data: CreateReservationData): Promise<Reservation> {
-    const id = `RES-${randomUUID().slice(0, 8).toUpperCase()}`;
+    const id = `RES-${randomUUID().replace(/-/g, "").slice(0, 12).toUpperCase()}`;
 
-    const created = await prisma.$transaction(async (tx) => {
-      // Same guest-friendly upsert-by-phone as orders — no account required.
-      const customer = await tx.customer.upsert({
-        where: { phone: data.phone },
-        create: { name: data.customerName, phone: data.phone, email: data.email },
-        update: { name: data.customerName, ...(data.email ? { email: data.email } : {}) },
-      });
-
-      return tx.reservation.create({
-        data: {
-          id,
-          customerId: customer.id,
-          customerName: data.customerName,
-          phone: data.phone,
-          email: data.email,
-          date: data.date,
-          time: data.time,
-          guests: data.guests,
-          specialRequests: data.specialRequests,
-          status: "PENDING",
-        },
-      });
+    const created = await prisma.reservation.create({
+      data: {
+        id,
+        customerId: data.customerId,
+        customerName: data.customerName,
+        phone: data.phone,
+        email: data.email,
+        date: data.date,
+        time: data.time,
+        guests: data.guests,
+        specialRequests: data.specialRequests,
+        status: "PENDING",
+      },
     });
 
     return toDomainReservation(created);
@@ -71,8 +69,22 @@ export class PrismaReservationRepository implements ReservationRepository {
     return row ? toDomainReservation(row) : undefined;
   }
 
-  async updateStatus(id: string, status: ReservationStatus): Promise<Reservation> {
-    const row = await prisma.reservation.update({ where: { id }, data: { status } });
+  async findByIdForCustomer(id: string, customerId: string): Promise<Reservation | undefined> {
+    const row = await prisma.reservation.findFirst({ where: { id, customerId } });
+    return row ? toDomainReservation(row) : undefined;
+  }
+
+  async listByCustomer(customerId: string): Promise<Reservation[]> {
+    const rows = await prisma.reservation.findMany({
+      where: { customerId },
+      orderBy: { createdAt: "desc" },
+      take: 100,
+    });
+    return rows.map(toDomainReservation);
+  }
+
+  async updateStatus(id: string, status: ReservationStatus, adminMessage?: string | null): Promise<Reservation> {
+    const row = await prisma.reservation.update({ where: { id }, data: { status, adminMessage: adminMessage ?? null } });
     return toDomainReservation(row);
   }
 }

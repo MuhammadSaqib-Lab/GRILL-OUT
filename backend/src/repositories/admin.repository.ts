@@ -50,6 +50,10 @@ export const adminUserRepository = {
   findById(id: string) {
     return prisma.adminUser.findUnique({ where: { id } });
   },
+  async bumpSessionVersion(id: string): Promise<void> {
+    // updateMany: a deleted account is a no-op instead of a thrown P2025.
+    await prisma.adminUser.updateMany({ where: { id }, data: { sessionVersion: { increment: 1 } } });
+  },
 };
 
 // ---------------------------------------------------------------------------
@@ -149,6 +153,7 @@ export const adminReservationRepository = {
       time: row.time,
       guests: row.guests,
       ...(row.specialRequests ? { specialRequests: row.specialRequests } : {}),
+      ...(row.adminMessage ? { adminMessage: row.adminMessage } : {}),
       status: row.status,
       createdAt: row.createdAt.toISOString(),
     }));
@@ -173,6 +178,9 @@ export const adminCustomerRepository = {
             { name: { contains: params.search, mode: "insensitive" } },
             { phone: { contains: params.search, mode: "insensitive" } },
             { email: { contains: params.search, mode: "insensitive" } },
+            { loginEmail: { contains: params.search, mode: "insensitive" } },
+            // Registered accounts have no phone of their own — it lives on their orders.
+            { orders: { some: { phone: { contains: params.search, mode: "insensitive" } } } },
           ],
         }
       : {};
@@ -181,7 +189,7 @@ export const adminCustomerRepository = {
       prisma.customer.findMany({
         where,
         include: {
-          orders: { select: { total: true, createdAt: true } },
+          orders: { select: { total: true, createdAt: true, phone: true }, orderBy: { createdAt: "desc" } },
           _count: { select: { reservations: true } },
         },
         orderBy: { createdAt: "desc" },
@@ -199,8 +207,8 @@ export const adminCustomerRepository = {
       return {
         id: row.id,
         name: row.name,
-        phone: row.phone,
-        ...(row.email ? { email: row.email } : {}),
+        phone: row.phone ?? row.orders[0]?.phone ?? null,
+        ...(row.loginEmail || row.email ? { email: row.loginEmail ?? row.email ?? undefined } : {}),
         totalOrders: row.orders.length,
         totalSpent,
         lastOrderAt,

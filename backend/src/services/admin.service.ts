@@ -24,7 +24,7 @@ import { orderRepository } from "../repositories/order.repository";
 import { reservationRepository } from "../repositories/reservation.repository";
 import { ApiError } from "../utils/ApiError";
 import { signAdminToken } from "../utils/adminToken";
-import { hashPassword, verifyPassword } from "../utils/password";
+import { burnPasswordCheck, hashPassword, verifyPassword } from "../utils/password";
 import { slugify } from "../utils/slugify";
 import type { AdminLoginInput } from "../validators/admin.validator";
 import type { OrderStatus } from "../types/order.types";
@@ -42,15 +42,26 @@ const RESERVATION_CANCELLABLE_FROM: ReservationStatus[] = ["PENDING", "CONFIRMED
 export const adminAuthService = {
   async login(input: AdminLoginInput): Promise<{ token: string; profile: { id: string; email: string; name: string } }> {
     const admin = await adminUserRepository.findByEmail(input.email);
-    // Same generic message whether the email doesn't exist or the password
-    // is wrong — never reveal which one it was.
-    if (!admin) throw ApiError.badRequest("Invalid email or password");
+    // Same generic message — and, via burnPasswordCheck, the same amount of
+    // work — whether the email doesn't exist or the password is wrong.
+    if (!admin) {
+      await burnPasswordCheck(input.password);
+      throw ApiError.unauthorized("Invalid email or password");
+    }
 
     const valid = await verifyPassword(input.password, admin.passwordHash);
-    if (!valid) throw ApiError.badRequest("Invalid email or password");
+    if (!valid) throw ApiError.unauthorized("Invalid email or password");
 
-    const token = signAdminToken({ sub: admin.id, email: admin.email });
+    const token = signAdminToken({ sub: admin.id, email: admin.email, ver: admin.sessionVersion });
     return { token, profile: { id: admin.id, email: admin.email, name: admin.name } };
+  },
+
+  /** Revokes every token issued so far for this admin. Silent no-op for a
+   * missing/invalid token — logging out twice, or with an expired cookie,
+   * must not error. */
+  async logout(adminId: string | undefined): Promise<void> {
+    if (!adminId) return;
+    await adminUserRepository.bumpSessionVersion(adminId);
   },
 
   async getProfile(adminId: string) {
@@ -75,7 +86,7 @@ export const adminOrderService = {
     return order;
   },
 
-  async updateStatus(id: string, nextStatus: OrderStatus) {
+  async updateStatus(id: string, nextStatus: OrderStatus, message: string | null = null) {
     const order = await this.getById(id);
 
     if (ORDER_TERMINAL.includes(order.status)) {
@@ -85,7 +96,7 @@ export const adminOrderService = {
       throw ApiError.conflict(`Order ${id} can no longer be cancelled from status "${order.status}"`);
     }
 
-    return orderRepository.updateStatus(id, nextStatus);
+    return orderRepository.updateStatus(id, nextStatus, message);
   },
 };
 
@@ -104,7 +115,7 @@ export const adminReservationService = {
     return reservation;
   },
 
-  async updateStatus(id: string, nextStatus: ReservationStatus) {
+  async updateStatus(id: string, nextStatus: ReservationStatus, message: string | null = null) {
     const reservation = await this.getById(id);
 
     if (RESERVATION_TERMINAL.includes(reservation.status)) {
@@ -114,7 +125,7 @@ export const adminReservationService = {
       throw ApiError.conflict(`Reservation ${id} can no longer be cancelled from status "${reservation.status}"`);
     }
 
-    return reservationRepository.updateStatus(id, nextStatus);
+    return reservationRepository.updateStatus(id, nextStatus, message);
   },
 };
 

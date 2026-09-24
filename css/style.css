@@ -1,6 +1,7 @@
 /* Grill Out — custom styles that go beyond utility classes */
 
-@import url('https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Poppins:wght@300;400;500;600;700;800&display=swap');
+/* Web fonts are loaded from <link> tags in index.html (an @import here would
+   make the browser fetch fonts only after this stylesheet had downloaded). */
 
 html {
   scroll-behavior: smooth;
@@ -48,11 +49,19 @@ section[id] {
 .hero-bg-layer {
   position: absolute;
   inset: -10%;
-  background-image: url('https://images.unsplash.com/photo-1503220178855-e31ec372b8ad?auto=format&fit=crop&w=1920&q=80');
+  /* Same photo as before, sized to the screen: 900px wide on phones, 1600px on
+     larger screens (index.html preloads the matching one). */
+  background-image: url('https://images.unsplash.com/photo-1503220178855-e31ec372b8ad?auto=format&fit=crop&w=1600&q=70');
   background-size: cover;
   background-position: center 78%;
   transform: translate3d(0, 0, 0) scale(1.08);
   will-change: transform;
+}
+
+@media (max-width: 768px) {
+  .hero-bg-layer {
+    background-image: url('https://images.unsplash.com/photo-1503220178855-e31ec372b8ad?auto=format&fit=crop&w=900&q=70');
+  }
 }
 
 /* Clean, even darkening — no colored bloom — so the white and orange
@@ -198,6 +207,17 @@ section[id] {
 #cart-backdrop.open {
   opacity: 1;
   pointer-events: auto;
+}
+
+/* Keyboard focus must always be visible (inputs already have their own ring). */
+:focus-visible {
+  outline: 2px solid #ff8a3d;
+  outline-offset: 2px;
+}
+input:focus-visible,
+textarea:focus-visible,
+select:focus-visible {
+  outline: none;
 }
 
 /* Mobile nav panel slide */

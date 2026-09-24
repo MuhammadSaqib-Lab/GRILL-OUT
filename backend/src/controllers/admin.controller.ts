@@ -7,7 +7,8 @@ import {
   adminOrderService,
   adminReservationService,
 } from "../services/admin.service";
-import { adminCookie } from "../utils/adminToken";
+import { emailService } from "../services/email.service";
+import { adminCookie, verifyAdminToken } from "../utils/adminToken";
 import { ApiError } from "../utils/ApiError";
 import { sendSuccess } from "../utils/apiResponse";
 import { asyncHandler } from "../utils/asyncHandler";
@@ -20,7 +21,10 @@ export const adminAuthController = {
     sendSuccess(res, profile, 200, "Logged in");
   }),
 
-  logout: asyncHandler(async (_req: Request, res: Response) => {
+  logout: asyncHandler(async (req: Request, res: Response) => {
+    const token = req.cookies?.[adminCookie.name] as string | undefined;
+    const payload = token ? verifyAdminToken(token) : null;
+    await adminAuthService.logout(payload?.sub);
     res.clearCookie(adminCookie.name, { ...adminCookie.options, maxAge: undefined });
     sendSuccess(res, null, 200, "Logged out");
   }),
@@ -51,7 +55,9 @@ export const adminOrderController = {
   }),
 
   updateStatus: asyncHandler(async (req: Request, res: Response) => {
-    const order = await adminOrderService.updateStatus(req.params.id as string, req.body.status);
+    const order = await adminOrderService.updateStatus(req.params.id as string, req.body.status, req.body.message);
+    // The customer's account already shows the new status (same row); this also emails them.
+    emailService.notifyOrderStatus(order);
     sendSuccess(res, order, 200, "Order status updated");
   }),
 };
@@ -68,7 +74,12 @@ export const adminReservationController = {
   }),
 
   updateStatus: asyncHandler(async (req: Request, res: Response) => {
-    const reservation = await adminReservationService.updateStatus(req.params.id as string, req.body.status);
+    const reservation = await adminReservationService.updateStatus(
+      req.params.id as string,
+      req.body.status,
+      req.body.message
+    );
+    emailService.notifyReservationStatus(reservation);
     sendSuccess(res, reservation, 200, "Reservation status updated");
   }),
 };

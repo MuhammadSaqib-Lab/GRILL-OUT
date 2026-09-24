@@ -6,63 +6,16 @@
 <title>Settings | Grill Out Admin</title>
 <meta name="robots" content="noindex, nofollow" />
 
-<script src="https://cdn.tailwindcss.com"></script>
-<script>
-  tailwind.config = {
-    theme: {
-      extend: {
-        colors: {
-          charcoal: "#121212",
-          charcoal2: "#1a1a1a",
-          flame: { DEFAULT: "#FF6B00", light: "#FF8A3D", dark: "#CC5500" },
-          ember: "#E63946",
-          amber: { DEFAULT: "#FFB800" },
-        },
-        fontFamily: {
-          display: ["'Bebas Neue'", "sans-serif"],
-          sans: ["'Poppins'", "sans-serif"],
-        },
-      },
-    },
-  };
-</script>
-<style>
-  @import url('https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Poppins:wght@300;400;500;600;700;800&display=swap');
-  body { font-family: 'Poppins', sans-serif; }
-</style>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Poppins:wght@300;400;500;600;700&display=swap" />
+<link rel="stylesheet" href="shared/admin.css" />
 </head>
 <body class="bg-charcoal text-white">
 
 <div id="admin-shell"></div>
 
 <script src="shared/admin.js"></script>
-<script>
-  (async () => {
-    const profile = await mountShell("settings", "Settings");
-    if (!profile) return;
-
-    document.getElementById("page-content").innerHTML = `
-      <div class="max-w-md rounded-2xl border border-white/10 bg-charcoal2 p-6">
-        <h2 class="font-display text-xl tracking-wide">Admin Profile</h2>
-        <div class="mt-4 space-y-3 text-sm">
-          <div>
-            <p class="text-xs uppercase tracking-wide text-gray-500">Name</p>
-            <p class="mt-0.5">${profile.name}</p>
-          </div>
-          <div>
-            <p class="text-xs uppercase tracking-wide text-gray-500">Email</p>
-            <p class="mt-0.5">${profile.email}</p>
-          </div>
-        </div>
-        <p class="mt-5 text-xs text-gray-600">
-          Account details are managed via environment configuration. To change the admin password, update
-          <code class="rounded bg-white/5 px-1 py-0.5">ADMIN_PASSWORD</code> and re-run the seed script.
-        </p>
-        <button id="logout-btn-2" class="mt-6 w-full rounded-full border border-white/10 py-2.5 text-sm font-semibold text-red-400 hover:border-red-500">Log Out</button>
-      </div>`;
-
-    document.getElementById("logout-btn-2").addEventListener("click", logout);
-  })();
-</script>
+<script src="pages/settings.js"></script>
 </body>
 </html>

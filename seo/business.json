@@ -1,0 +1,23 @@
+{
+  "name": "Grill Out",
+  "legalNote": "Facts below mirror what index.html already shows publicly. Add only what is true: leave sameAs / priceRange / geo out until confirmed.",
+  "description": "Flame-grilled burgers, steaks, pizza, pasta and BBQ platters on GT Road, Haripur. Order online for pickup or delivery, or reserve a table.",
+  "telephone": ["+923345332323", "+923101006406"],
+  "address": {
+    "streetAddress": "Near Shahi Restaurant, GT Road",
+    "addressLocality": "Haripur",
+    "addressRegion": "Khyber Pakhtunkhwa",
+    "addressCountry": "PK"
+  },
+  "servesCuisine": ["Burgers", "Steaks", "Barbecue", "Pizza", "Pasta"],
+  "openingHours": [
+    { "dayOfWeek": ["Monday", "Tuesday", "Wednesday", "Thursday"], "opens": "16:00", "closes": "00:00" },
+    { "dayOfWeek": ["Friday", "Saturday", "Sunday"], "opens": "16:00", "closes": "01:00" }
+  ],
+  "sameAs": [],
+  "image": "images/og-image.jpg",
+  "logo": "images/icons/icon-512.png",
+  "pages": [
+    { "path": "/", "changefreq": "weekly", "priority": "1.0" }
+  ]
+}

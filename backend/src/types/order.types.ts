@@ -39,6 +39,8 @@ export interface Order {
   orderType: OrderType;
   deliveryAddress?: string;
   specialInstructions?: string;
+  /** Optional note from the restaurant, tied to the current status. */
+  adminMessage?: string;
   status: OrderStatus;
   createdAt: string;
   updatedAt: string;

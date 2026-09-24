@@ -16,15 +16,15 @@ function handlePrismaError(
 ): boolean {
   switch (err.code) {
     case "P2002": // unique constraint violation
-      logger.warn("Unique constraint violation", { path: req.originalUrl, target: err.meta?.target });
+      logger.warn("Unique constraint violation", { path: req.path, target: err.meta?.target });
       sendError(res, 409, "CONFLICT", "A record with that value already exists.");
       return true;
     case "P2003": // foreign key constraint violation
-      logger.warn("Foreign key violation", { path: req.originalUrl, field: err.meta?.field_name });
+      logger.warn("Foreign key violation", { path: req.path, field: err.meta?.field_name });
       sendError(res, 400, "BAD_REQUEST", "This request references something that doesn't exist.");
       return true;
     case "P2025": // record required for operation was not found
-      logger.info("Record not found for update/delete", { path: req.originalUrl });
+      logger.info("Record not found for update/delete", { path: req.path });
       sendError(res, 404, "NOT_FOUND", "The requested record was not found.");
       return true;
     default:
@@ -39,7 +39,7 @@ function handlePrismaError(
 export function errorHandler(err: unknown, req: Request, res: Response, _next: NextFunction): void {
   if (err instanceof ZodError) {
     const fieldErrors = err.flatten().fieldErrors;
-    logger.warn("Validation error", { path: req.originalUrl, fieldErrors });
+    logger.warn("Validation error", { path: req.path, fieldErrors });
     sendError(res, 400, "VALIDATION_ERROR", "Invalid request data", fieldErrors);
     return;
   }
@@ -48,7 +48,7 @@ export function errorHandler(err: unknown, req: Request, res: Response, _next: N
   // of 400) for malformed request bodies — that's a client mistake, not a
   // server fault, so it must not fall through to the generic 500 below.
   if (err instanceof SyntaxError && "status" in err && (err as { status?: number }).status === 400) {
-    logger.warn("Malformed JSON body", { path: req.originalUrl });
+    logger.warn("Malformed JSON body", { path: req.path });
     sendError(res, 400, "MALFORMED_JSON", "Request body is not valid JSON");
     return;
   }
@@ -56,7 +56,7 @@ export function errorHandler(err: unknown, req: Request, res: Response, _next: N
   if (err instanceof ApiError) {
     // Client errors (4xx) are expected traffic, not incidents — info level.
     // Anything the caller mis-typed still gets logged so patterns are visible.
-    logger.info(`${err.code}: ${err.message}`, { path: req.originalUrl, statusCode: err.statusCode });
+    logger.info(`${err.code}: ${err.message}`, { path: req.path, statusCode: err.statusCode });
     sendError(res, err.statusCode, err.code, err.message, err.details);
     return;
   }
@@ -66,7 +66,7 @@ export function errorHandler(err: unknown, req: Request, res: Response, _next: N
   }
 
   if (err instanceof Prisma.PrismaClientInitializationError || err instanceof Prisma.PrismaClientRustPanicError) {
-    logger.error("Database connection failure", { path: req.originalUrl, message: err.message });
+    logger.error("Database connection failure", { path: req.path, message: err.message });
     sendError(res, 503, "DATABASE_UNAVAILABLE", "The database is temporarily unavailable. Please try again shortly.");
     return;
   }
@@ -74,14 +74,14 @@ export function errorHandler(err: unknown, req: Request, res: Response, _next: N
   if (err instanceof Prisma.PrismaClientValidationError) {
     // A malformed Prisma query got this far — a bug, not the caller's
     // fault, but still not something to describe to them in detail.
-    logger.error("Prisma validation error", { path: req.originalUrl, message: err.message });
+    logger.error("Prisma validation error", { path: req.path, message: err.message });
     sendError(res, 500, "INTERNAL_ERROR", "Something went wrong on our end. Please try again shortly.");
     return;
   }
 
   const message = err instanceof Error ? err.message : String(err);
   const stack = err instanceof Error ? err.stack : undefined;
-  logger.error("Unhandled error", { path: req.originalUrl, message, stack });
+  logger.error("Unhandled error", { path: req.path, message, stack });
 
   sendError(
     res,

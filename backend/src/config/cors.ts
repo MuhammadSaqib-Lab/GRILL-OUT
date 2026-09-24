@@ -6,7 +6,10 @@ import { ApiError } from "../utils/ApiError";
 const baseCorsOptions: Omit<CorsOptions, "origin"> = {
   methods: ["GET", "POST", "PATCH", "DELETE", "OPTIONS"],
   allowedHeaders: ["Content-Type"],
-  credentials: false,
+  // Customer sessions travel in an httpOnly cookie, so the browser must be
+  // allowed to send it cross-origin from the (allowlisted) website. The origin
+  // reflected back is always one exact allowlisted value — never "*".
+  credentials: true,
   maxAge: 600,
 };
 
@@ -21,8 +24,13 @@ const baseCorsOptions: Omit<CorsOptions, "origin"> = {
 export const corsOptionsDelegate: CorsOptionsDelegate<Request> = (req, callback) => {
   const origin = req.headers.origin;
   const selfOrigin = `${req.protocol}://${req.get("host") ?? ""}`;
+  // The admin API is only ever called by the admin UI served from this same
+  // origin. The public website's origin is allowlisted for the public API, but
+  // must not be able to call admin endpoints with an admin's cookie.
+  const adminOnly = req.path.startsWith("/api/admin");
+  const allowed = adminOnly ? origin === selfOrigin : env.allowedOrigins.includes(origin ?? "") || origin === selfOrigin;
 
-  if (!origin || origin === selfOrigin || env.allowedOrigins.includes(origin)) {
+  if (!origin || allowed) {
     callback(null, { ...baseCorsOptions, origin: true });
     return;
   }

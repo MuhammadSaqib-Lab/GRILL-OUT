@@ -11,6 +11,8 @@ export interface CreateOrderLine {
 }
 
 export interface CreateOrderData {
+  /** The logged-in account this order belongs to (from the session, never the client). */
+  customerId: string;
   customerName: string;
   phone: string;
   email?: string;
@@ -29,7 +31,13 @@ export interface OrderRepository {
    * Throws ApiError (never partially writes) if any line is invalid. */
   createOrder(data: CreateOrderData): Promise<Order>;
   findById(id: string): Promise<Order | undefined>;
-  updateStatus(id: string, status: OrderStatus): Promise<Order>;
+  /** Scoped by owner: returns undefined for someone else's order, exactly as
+   * if it didn't exist (so ids can't be probed). */
+  findByIdForCustomer(id: string, customerId: string): Promise<Order | undefined>;
+  listByCustomer(customerId: string): Promise<Order[]>;
+  /** `adminMessage` replaces any previous message; null/undefined clears it,
+   * so a note never lingers on a status it wasn't written for. */
+  updateStatus(id: string, status: OrderStatus, adminMessage?: string | null): Promise<Order>;
 }
 
 type PrismaOrderWithItems = PrismaOrder & { items: PrismaOrderItem[] };
@@ -54,6 +62,7 @@ function toDomainOrder(row: PrismaOrderWithItems): Order {
     orderType: row.orderType,
     ...(row.deliveryAddress ? { deliveryAddress: row.deliveryAddress } : {}),
     ...(row.specialInstructions ? { specialInstructions: row.specialInstructions } : {}),
+    ...(row.adminMessage ? { adminMessage: row.adminMessage } : {}),
     status: row.status,
     createdAt: row.createdAt.toISOString(),
     updatedAt: row.updatedAt.toISOString(),
@@ -62,7 +71,7 @@ function toDomainOrder(row: PrismaOrderWithItems): Order {
 
 export class PrismaOrderRepository implements OrderRepository {
   async createOrder(data: CreateOrderData): Promise<Order> {
-    const id = `ORD-${randomUUID().slice(0, 8).toUpperCase()}`;
+    const id = `ORD-${randomUUID().replace(/-/g, "").slice(0, 12).toUpperCase()}`;
 
     // Interactive transaction: if anything inside throws (bad item, race
     // condition where an item went unavailable, whatever), Prisma rolls
@@ -118,19 +127,10 @@ export class PrismaOrderRepository implements OrderRepository {
       const subtotal = orderItemsData.reduce((sum, l) => sum + Number(l.subtotal), 0);
       const total = subtotal + data.deliveryFee;
 
-      // Guest checkout stays guest checkout — this just links repeat
-      // customers by phone number so there's a real table for the future
-      // admin dashboard's customer view. No login, no password, ever.
-      const customer = await tx.customer.upsert({
-        where: { phone: data.phone },
-        create: { name: data.customerName, phone: data.phone, email: data.email },
-        update: { name: data.customerName, ...(data.email ? { email: data.email } : {}) },
-      });
-
       return tx.order.create({
         data: {
           id,
-          customerId: customer.id,
+          customerId: data.customerId,
           customerName: data.customerName,
           phone: data.phone,
           email: data.email,
@@ -155,10 +155,25 @@ export class PrismaOrderRepository implements OrderRepository {
     return row ? toDomainOrder(row) : undefined;
   }
 
-  async updateStatus(id: string, status: OrderStatus): Promise<Order> {
+  async findByIdForCustomer(id: string, customerId: string): Promise<Order | undefined> {
+    const row = await prisma.order.findFirst({ where: { id, customerId }, include: { items: true } });
+    return row ? toDomainOrder(row) : undefined;
+  }
+
+  async listByCustomer(customerId: string): Promise<Order[]> {
+    const rows = await prisma.order.findMany({
+      where: { customerId },
+      include: { items: true },
+      orderBy: { createdAt: "desc" },
+      take: 100,
+    });
+    return rows.map(toDomainOrder);
+  }
+
+  async updateStatus(id: string, status: OrderStatus, adminMessage?: string | null): Promise<Order> {
     const row = await prisma.order.update({
       where: { id },
-      data: { status },
+      data: { status, adminMessage: adminMessage ?? null },
       include: { items: true },
     });
     return toDomainOrder(row);

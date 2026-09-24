@@ -42,6 +42,15 @@ function icon(name, cls = "h-5 w-5") {
   return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="${cls}">${ICONS[name] || ""}</svg>`;
 }
 
+// Everything that comes from the server — customer names, addresses, notes,
+// menu text — is untrusted (customers type it). It must never reach innerHTML
+// unescaped: that is how a name like <img onerror=...> would run script in an
+// admin's session. Wrap every interpolated data value in esc().
+const ESC_MAP = { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;", "`": "&#96;" };
+function esc(value) {
+  return String(value ?? "").replace(/[&<>"'`]/g, (c) => ESC_MAP[c]);
+}
+
 // ---- API helper -------------------------------------------------------------
 
 const AdminAPI = {
@@ -110,7 +119,7 @@ function renderShell(activeKey) {
 
   const navLinks = NAV_ITEMS.map(
     (item) => `
-    <a href="${item.href}" data-nav="${item.key}"
+    <a href="${item.href}" data-nav="${item.key}" ${item.key === activeKey ? 'aria-current="page"' : ""}
       class="flex items-center gap-3 rounded-xl px-3.5 py-2.5 text-sm font-medium transition
         ${item.key === activeKey ? "bg-flame/15 text-flame" : "text-gray-400 hover:bg-white/5 hover:text-white"}">
       ${icon(item.icon, "h-[18px] w-[18px] shrink-0")}
@@ -119,12 +128,13 @@ function renderShell(activeKey) {
   ).join("");
 
   root.innerHTML = `
+    <a href="#page-content" class="sr-only focus:not-sr-only focus:fixed focus:left-3 focus:top-3 focus:z-[120] focus:rounded-lg focus:bg-flame focus:px-4 focus:py-2 focus:text-sm focus:font-semibold focus:text-white">Skip to main content</a>
     <div class="flex min-h-screen bg-charcoal text-white">
       <!-- Mobile sidebar backdrop -->
       <div id="sidebar-backdrop" class="fixed inset-0 z-30 hidden bg-black/60 lg:hidden"></div>
 
       <!-- Sidebar -->
-      <aside id="sidebar" class="fixed inset-y-0 left-0 z-40 w-64 -translate-x-full border-r border-white/5 bg-charcoal2 transition-transform lg:static lg:translate-x-0">
+      <aside id="sidebar" class="invisible fixed inset-y-0 left-0 z-40 w-64 -translate-x-full border-r border-white/5 bg-charcoal2 transition-transform lg:visible lg:static lg:translate-x-0">
         <div class="flex h-16 items-center gap-2 border-b border-white/5 px-5">
           <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" class="h-6 w-6 text-flame">
             <path d="M12.5 1.5c1 3-2 4.5-2 7.5a2.5 2.5 0 0 0 5 0c0-.6-.2-1.1-.5-1.6 2 1 3.5 3 3.5 5.6a6.5 6.5 0 1 1-13 0c0-4 2.5-6 4-8.5.7-1.1 1.3-2.1 3-3z"/>
@@ -132,14 +142,14 @@ function renderShell(activeKey) {
           <span class="font-display text-lg tracking-wider">GRILL <span class="text-flame">OUT</span></span>
           <span class="ml-auto rounded-full bg-white/5 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-gray-500">Admin</span>
         </div>
-        <nav class="flex flex-col gap-1 p-3">${navLinks}</nav>
+        <nav aria-label="Admin sections" class="flex flex-col gap-1 p-3">${navLinks}</nav>
       </aside>
 
       <!-- Main -->
       <div class="flex min-h-screen flex-1 flex-col">
         <!-- Topbar -->
         <header class="sticky top-0 z-20 flex h-16 items-center gap-4 border-b border-white/5 bg-charcoal/90 px-4 backdrop-blur sm:px-6">
-          <button id="sidebar-toggle" type="button" class="rounded-lg p-2 text-gray-400 hover:bg-white/5 hover:text-white lg:hidden" aria-label="Toggle menu">
+          <button id="sidebar-toggle" type="button" class="rounded-lg p-2 text-gray-400 hover:bg-white/5 hover:text-white lg:hidden" aria-controls="sidebar" aria-expanded="false" aria-label="Open navigation menu">
             ${icon("menu")}
           </button>
           <h1 id="page-title" class="font-display text-xl tracking-wide sm:text-2xl"></h1>
@@ -157,7 +167,7 @@ function renderShell(activeKey) {
           </div>
         </header>
 
-        <main id="page-content" class="flex-1 p-4 sm:p-6 lg:p-8"></main>
+        <main id="page-content" tabindex="-1" class="flex-1 p-4 outline-none sm:p-6 lg:p-8"></main>
       </div>
     </div>`;
 
@@ -165,16 +175,26 @@ function renderShell(activeKey) {
 
   const sidebar = document.getElementById("sidebar");
   const backdrop = document.getElementById("sidebar-backdrop");
+  const toggle = document.getElementById("sidebar-toggle");
   const openSidebar = () => {
-    sidebar.classList.remove("-translate-x-full");
+    sidebar.classList.remove("-translate-x-full", "invisible");
     backdrop.classList.remove("hidden");
+    toggle.setAttribute("aria-expanded", "true");
+    sidebar.querySelector("a")?.focus();
   };
   const closeSidebar = () => {
-    sidebar.classList.add("-translate-x-full");
+    sidebar.classList.add("-translate-x-full", "invisible");
     backdrop.classList.add("hidden");
+    toggle.setAttribute("aria-expanded", "false");
   };
-  document.getElementById("sidebar-toggle").addEventListener("click", openSidebar);
+  toggle.addEventListener("click", openSidebar);
   backdrop.addEventListener("click", closeSidebar);
+  document.addEventListener("keydown", (e) => {
+    if (e.key === "Escape" && !backdrop.classList.contains("hidden")) {
+      closeSidebar();
+      toggle.focus();
+    }
+  });
   sidebar.querySelectorAll("a").forEach((a) => a.addEventListener("click", closeSidebar));
 }
 
@@ -208,6 +228,8 @@ function showToast(message, type = "success") {
     host = document.createElement("div");
     host.id = "toast-host";
     host.className = "fixed bottom-4 right-4 z-[100] flex flex-col gap-2";
+    host.setAttribute("role", "status");
+    host.setAttribute("aria-live", "polite");
     document.body.appendChild(host);
   }
   const colors = {
@@ -228,21 +250,36 @@ function showToast(message, type = "success") {
 
 function confirmDialog({ title, message, confirmLabel = "Confirm", danger = false }) {
   return new Promise((resolve) => {
+    const opener = document.activeElement;
     const overlay = document.createElement("div");
     overlay.className = "fixed inset-0 z-[110] flex items-center justify-center bg-black/70 p-4";
     overlay.innerHTML = `
-      <div role="alertdialog" aria-modal="true" aria-labelledby="confirm-title" class="w-full max-w-sm rounded-2xl border border-white/10 bg-charcoal2 p-6">
-        <h2 id="confirm-title" class="font-display text-xl tracking-wide">${title}</h2>
-        <p class="mt-2 text-sm text-gray-400">${message}</p>
+      <div role="alertdialog" aria-modal="true" aria-labelledby="confirm-title" aria-describedby="confirm-message" class="w-full max-w-sm rounded-2xl border border-white/10 bg-charcoal2 p-6">
+        <h2 id="confirm-title" class="font-display text-xl tracking-wide"></h2>
+        <p id="confirm-message" class="mt-2 text-sm text-gray-400"></p>
         <div class="mt-6 flex justify-end gap-3">
-          <button data-action="cancel" class="rounded-full border border-white/10 px-4 py-2 text-sm font-semibold text-gray-300 hover:border-white/30">Cancel</button>
-          <button data-action="confirm" class="rounded-full px-4 py-2 text-sm font-semibold text-white ${danger ? "bg-red-600 hover:bg-red-500" : "bg-flame hover:bg-flame-light"}">${confirmLabel}</button>
+          <button type="button" data-action="cancel" class="rounded-full border border-white/10 px-4 py-2 text-sm font-semibold text-gray-300 hover:border-white/30">Cancel</button>
+          <button type="button" data-action="confirm" class="rounded-full px-4 py-2 text-sm font-semibold text-white ${danger ? "bg-red-600 hover:bg-red-500" : "bg-flame hover:bg-flame-light"}"></button>
         </div>
       </div>`;
+    // textContent, not innerHTML: the message often embeds a menu item or customer name.
+    overlay.querySelector("#confirm-title").textContent = title;
+    overlay.querySelector("#confirm-message").textContent = message;
+    overlay.querySelector('[data-action="confirm"]').textContent = confirmLabel;
     document.body.appendChild(overlay);
 
+    const onKey = (e) => {
+      if (e.key === "Escape") {
+        e.stopPropagation();
+        cleanup(false);
+      } else if (e.key === "Tab") {
+        trapTab(e, overlay);
+      }
+    };
     const cleanup = (result) => {
+      document.removeEventListener("keydown", onKey, true);
       overlay.remove();
+      opener?.focus?.();
       resolve(result);
     };
     overlay.querySelector('[data-action="cancel"]').addEventListener("click", () => cleanup(false));
@@ -250,15 +287,62 @@ function confirmDialog({ title, message, confirmLabel = "Confirm", danger = fals
     overlay.addEventListener("click", (e) => {
       if (e.target === overlay) cleanup(false);
     });
-    const onKey = (e) => {
-      if (e.key === "Escape") {
-        cleanup(false);
-        document.removeEventListener("keydown", onKey);
-      }
-    };
-    document.addEventListener("keydown", onKey);
-    overlay.querySelector('[data-action="confirm"]').focus();
+    document.addEventListener("keydown", onKey, true);
+    overlay.querySelector('[data-action="cancel"]').focus();
   });
+}
+
+// Keeps Tab / Shift+Tab inside an open dialog.
+function trapTab(e, container) {
+  const focusable = [
+    ...container.querySelectorAll(
+      'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])'
+    ),
+  ].filter((el) => el.offsetParent !== null);
+  if (focusable.length === 0) return;
+  const first = focusable[0];
+  const last = focusable[focusable.length - 1];
+  if (e.shiftKey && document.activeElement === first) {
+    e.preventDefault();
+    last.focus();
+  } else if (!e.shiftKey && document.activeElement === last) {
+    e.preventDefault();
+    first.focus();
+  }
+}
+
+// Accessible modal: role=dialog labelled by the element with id `labelId`;
+// Escape and backdrop-click close it, Tab is trapped inside, and focus returns
+// to whatever opened it. `html` must already have every data value esc()'d and
+// should contain a heading with id=labelId plus a [data-close] button.
+function openModal(html, { labelId, widthClass = "max-w-lg" } = {}) {
+  const opener = document.activeElement;
+  const overlay = document.createElement("div");
+  overlay.className = "fixed inset-0 z-[105] flex items-start justify-center overflow-y-auto bg-black/70 p-4 sm:items-center";
+  overlay.innerHTML = `<div role="dialog" aria-modal="true" ${labelId ? `aria-labelledby="${labelId}"` : ""} class="my-8 w-full ${widthClass} rounded-2xl border border-white/10 bg-charcoal2 p-6">${html}</div>`;
+  document.body.appendChild(overlay);
+
+  const close = () => {
+    document.removeEventListener("keydown", onKey);
+    overlay.remove();
+    opener?.focus?.();
+  };
+  const onKey = (e) => {
+    // A confirm dialog opened from inside this modal handles its own keys.
+    if (document.querySelector('[role="alertdialog"]')) return;
+    if (e.key === "Escape") close();
+    else if (e.key === "Tab") trapTab(e, overlay);
+  };
+  document.addEventListener("keydown", onKey);
+  overlay.addEventListener("click", (e) => {
+    if (e.target === overlay) close();
+  });
+  overlay.querySelectorAll("[data-close]").forEach((b) => b.addEventListener("click", close));
+
+  const firstField =
+    overlay.querySelector("input, select, textarea, button:not([data-close])") || overlay.querySelector("[data-close]");
+  firstField?.focus();
+  return { overlay, close };
 }
 
 // ---- Small formatting/state helpers ---------------------------------------------
@@ -295,7 +379,7 @@ const RESERVATION_STATUS_STYLES = {
 
 function statusBadge(status, map) {
   const cls = map[status] || "bg-white/10 text-gray-300";
-  return `<span class="inline-flex rounded-full px-2.5 py-1 text-xs font-semibold ${cls}">${status.replace(/_/g, " ")}</span>`;
+  return `<span class="inline-flex rounded-full px-2.5 py-1 text-xs font-semibold ${cls}">${esc(String(status).replace(/_/g, " "))}</span>`;
 }
 
 function loadingRow(colspan, label = "Loading…") {
@@ -306,16 +390,18 @@ function loadingRow(colspan, label = "Loading…") {
     </span></td></tr>`;
 }
 function emptyRow(colspan, label) {
-  return `<tr><td colspan="${colspan}" class="py-12 text-center text-sm text-gray-500">${label}</td></tr>`;
+  return `<tr><td colspan="${colspan}" class="py-12 text-center text-sm text-gray-500">${esc(label)}</td></tr>`;
 }
 function errorRow(colspan, message) {
-  return `<tr><td colspan="${colspan}" class="py-12 text-center text-sm text-red-400">${message}</td></tr>`;
+  return `<tr><td colspan="${colspan}" class="py-12 text-center text-sm text-red-400" role="alert">${esc(message)}</td></tr>`;
 }
 
 function paginationControls(result, onPage) {
   const { page, totalPages, total } = result;
   const wrap = document.createElement("div");
   wrap.className = "mt-4 flex items-center justify-between text-sm text-gray-400";
+  wrap.setAttribute("role", "navigation");
+  wrap.setAttribute("aria-label", "Pagination");
   wrap.innerHTML = `
     <span>${total} total · page ${page} of ${totalPages}</span>
     <div class="flex gap-2">

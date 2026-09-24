@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { safeText } from "./common";
 
 const phoneSchema = z
   .string()
@@ -20,18 +21,17 @@ const dateSchema = z
 const timeSchema = z.string().regex(/^([01]\d|2[0-3]):([0-5]\d)$/, "Time must be in HH:MM 24h format");
 
 export const createReservationSchema = z.object({
-  customerName: z.string().trim().min(2, "Name is too short").max(100),
+  // Name and email come from the logged-in account, not the request body.
   phone: phoneSchema,
-  email: z.string().trim().email("Enter a valid email").max(150).optional(),
   date: dateSchema,
   time: timeSchema,
   // Same option values as <select id="res-guests"> in index.html.
   guests: z.enum(["1-2", "3-4", "5-6", "7+"]),
-  specialRequests: z.string().trim().max(500).optional(),
+  specialRequests: safeText(0, 500).optional(),
 });
 
 export type CreateReservationInput = z.infer<typeof createReservationSchema>;
 
 export const reservationIdParamSchema = z.object({
-  id: z.string().trim().min(1),
+  id: z.string().trim().regex(/^RES-[A-Z0-9]{8,16}$/, "Invalid reservation id"),
 });

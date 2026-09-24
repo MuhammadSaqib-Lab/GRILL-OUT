@@ -1,6 +1,7 @@
 import { orderRepository } from "../repositories/order.repository";
 import { env } from "../config/env";
 import type { Order, OrderStatus } from "../types/order.types";
+import type { AuthenticatedCustomer } from "../types/customer.types";
 import type { CreateOrderInput } from "../validators/order.validator";
 import { ApiError } from "../utils/ApiError";
 
@@ -12,13 +13,14 @@ export const orderService = {
   /** Business policy lives here (which delivery fee applies); the actual
    * fetch-verify-price-and-write-atomically sequence lives in the
    * repository, since it has to happen inside one database transaction. */
-  async createOrder(input: CreateOrderInput): Promise<Order> {
+  async createOrder(input: CreateOrderInput, customer: AuthenticatedCustomer): Promise<Order> {
     const deliveryFee = input.orderType === "delivery" ? env.DELIVERY_FEE : 0;
 
     return orderRepository.createOrder({
-      customerName: input.customerName,
+      customerId: customer.id,
+      customerName: customer.name,
       phone: input.phone,
-      email: input.email,
+      email: customer.email,
       orderType: input.orderType,
       deliveryAddress: input.deliveryAddress,
       specialInstructions: input.specialInstructions,
@@ -27,16 +29,19 @@ export const orderService = {
     });
   },
 
-  async getOrderById(id: string): Promise<Order> {
-    const order = await orderRepository.findById(id);
-    if (!order) {
-      throw ApiError.notFound(`Order ${id} was not found`);
-    }
+  /** Someone else's order is reported as not found — never as forbidden. */
+  async getOrderForCustomer(id: string, customerId: string): Promise<Order> {
+    const order = await orderRepository.findByIdForCustomer(id, customerId);
+    if (!order) throw ApiError.notFound(`Order ${id} was not found`);
     return order;
   },
 
-  async cancelOrder(id: string): Promise<Order> {
-    const order = await this.getOrderById(id);
+  listOrdersForCustomer(customerId: string): Promise<Order[]> {
+    return orderRepository.listByCustomer(customerId);
+  },
+
+  async cancelOrder(id: string, customerId: string): Promise<Order> {
+    const order = await this.getOrderForCustomer(id, customerId);
     if (!CANCELLABLE_STATUSES.includes(order.status)) {
       throw ApiError.conflict(`Order ${id} is "${order.status}" and can no longer be cancelled`);
     }

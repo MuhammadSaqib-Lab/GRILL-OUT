@@ -6,30 +6,10 @@
 <title>Admin Login | Grill Out</title>
 <meta name="robots" content="noindex, nofollow" />
 
-<script src="https://cdn.tailwindcss.com"></script>
-<script>
-  tailwind.config = {
-    theme: {
-      extend: {
-        colors: {
-          charcoal: "#121212",
-          charcoal2: "#1a1a1a",
-          flame: { DEFAULT: "#FF6B00", light: "#FF8A3D", dark: "#CC5500" },
-          ember: "#E63946",
-          amber: { DEFAULT: "#FFB800" },
-        },
-        fontFamily: {
-          display: ["'Bebas Neue'", "sans-serif"],
-          sans: ["'Poppins'", "sans-serif"],
-        },
-      },
-    },
-  };
-</script>
-<style>
-  @import url('https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Poppins:wght@300;400;500;600;700;800&display=swap');
-  body { font-family: 'Poppins', sans-serif; }
-</style>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Poppins:wght@300;400;500;600;700&display=swap" />
+<link rel="stylesheet" href="shared/admin.css" />
 </head>
 <body class="flex min-h-screen items-center justify-center bg-charcoal px-4 text-white">
 
@@ -48,7 +28,7 @@
       <label for="email" class="mb-1.5 block text-sm font-medium text-gray-300">Email</label>
       <input id="email" name="email" type="email" autocomplete="username" required
         class="mb-4 w-full rounded-xl border border-white/10 bg-charcoal px-4 py-2.5 text-sm text-white placeholder-gray-600 outline-none transition focus:border-flame focus:ring-1 focus:ring-flame"
-        placeholder="admin@grillout.local" />
+        placeholder="Email address" />
 
       <label for="password" class="mb-1.5 block text-sm font-medium text-gray-300">Password</label>
       <input id="password" name="password" type="password" autocomplete="current-password" required
@@ -64,53 +44,6 @@
     <p class="mt-6 text-center text-xs text-gray-600">Restricted area. Authorized personnel only.</p>
   </div>
 
-<script>
-  const form = document.getElementById("login-form");
-  const errorBox = document.getElementById("form-error");
-  const submitBtn = document.getElementById("submit-btn");
-  const submitLabel = document.getElementById("submit-label");
-
-  function showError(message) {
-    errorBox.textContent = message;
-    errorBox.classList.remove("hidden");
-  }
-  function hideError() {
-    errorBox.classList.add("hidden");
-  }
-
-  // If already logged in, skip straight to the dashboard.
-  fetch("/api/admin/auth/me", { credentials: "include" })
-    .then((res) => { if (res.ok) location.href = "dashboard.html"; })
-    .catch(() => {});
-
-  form.addEventListener("submit", async (e) => {
-    e.preventDefault();
-    hideError();
-    submitBtn.disabled = true;
-    submitLabel.textContent = "Logging in…";
-
-    try {
-      const res = await fetch("/api/admin/auth/login", {
-        method: "POST",
-        credentials: "include",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          email: form.email.value.trim(),
-          password: form.password.value,
-        }),
-      });
-      const body = await res.json().catch(() => ({}));
-
-      if (!res.ok || !body.success) {
-        throw new Error(body?.error?.message || "Login failed");
-      }
-      location.href = "dashboard.html";
-    } catch (err) {
-      showError(err.message || "Something went wrong. Please try again.");
-      submitBtn.disabled = false;
-      submitLabel.textContent = "Log In";
-    }
-  });
-</script>
+<script src="pages/login.js"></script>
 </body>
 </html>

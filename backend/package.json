@@ -23,7 +23,9 @@
     "db:seed": "prisma db seed",
     "prisma:seed": "prisma db seed",
     "db:studio": "prisma studio",
-    "db:validate": "prisma validate"
+    "db:validate": "prisma validate",
+    "admin:set-password": "tsx scripts/set-admin-password.ts",
+    "customers:link-legacy": "tsx scripts/link-legacy-orders.ts"
   },
   "dependencies": {
     "@prisma/client": "5.22.0",
@@ -36,6 +38,7 @@
     "helmet": "^8.0.0",
     "jsonwebtoken": "^9.0.3",
     "morgan": "^1.10.0",
+    "nodemailer": "^10.0.10",
     "zod": "^3.23.8"
   },
   "devDependencies": {
@@ -46,6 +49,7 @@
     "@types/jsonwebtoken": "^9.0.10",
     "@types/morgan": "^1.9.9",
     "@types/node": "^22.10.2",
+    "@types/nodemailer": "^8.0.2",
     "@types/supertest": "^6.0.2",
     "@typescript-eslint/eslint-plugin": "^8.18.1",
     "@typescript-eslint/parser": "^8.18.1",

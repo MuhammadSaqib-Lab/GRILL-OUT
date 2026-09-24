@@ -3,11 +3,6 @@
 // cart drawer, reservation form). No frameworks, no build step.
 // ============================================================
 
-// ---- Backend API ----------------------------------------------------------
-// Points at the Express API in backend/ (see backend/API.md). Change this
-// one line when deploying the API somewhere other than localhost.
-const API_BASE_URL = "http://localhost:4000/api";
-
 // ---- Image bank ---------------------------------------------------------
 // Verified stock photography (Unsplash), one per dish type. Menu items
 // reuse the closest matching type rather than needing a unique photo each,
@@ -550,7 +545,33 @@ const formatPrice = (rupees) => `Rs. ${rupees.toLocaleString("en-PK")}`;
 // Keyed by "<itemId>::<optionLabel|default>" so pizza sizes / steak
 // variants / broast piece-counts are tracked as distinct cart lines.
 // { [cartKey]: { id, option, qty } }
-const cart = {};
+const CART_KEY = "grillout:cart";
+const cart = (() => {
+  // Restore a saved cart, keeping only lines that still make sense (a known
+  // menu item, a whole-number quantity 1-50). The server re-prices everything
+  // at checkout anyway; this is purely so nothing is lost across a login.
+  try {
+    const saved = JSON.parse(sessionStorage.getItem(CART_KEY) || "{}");
+    const restored = {};
+    for (const [key, line] of Object.entries(saved)) {
+      const known = line && MENU_ITEMS.some((m) => m.id === line.id);
+      if (known && Number.isInteger(line.qty) && line.qty >= 1 && line.qty <= 50 && typeof line.option === "string") {
+        restored[key] = { id: line.id, option: line.option, qty: line.qty };
+      }
+    }
+    return restored;
+  } catch {
+    return {};
+  }
+})();
+
+function saveCart() {
+  try {
+    sessionStorage.setItem(CART_KEY, JSON.stringify(cart));
+  } catch {
+    /* storage blocked — the cart just won't survive a page change */
+  }
+}
 
 const cartKey = (id, option) => `${id}::${option || "default"}`;
 
@@ -576,7 +597,7 @@ function cartTotal() {
 const filterTabsEl = document.getElementById("filter-tabs");
 filterTabsEl.innerHTML = CATEGORIES.map(
   (c, i) => `
-  <button type="button" data-filter="${c.key}"
+  <button type="button" data-filter="${c.key}" aria-pressed="${i === 0}"
     class="rounded-full border px-5 py-2 text-sm font-semibold transition
       ${i === 0 ? "border-orange-600 bg-orange-600 text-white" : "border-white/10 text-gray-400 hover:border-flame hover:text-flame"}">
     ${c.label}
@@ -613,6 +634,15 @@ function singlePriceButtonHtml(item) {
     </button>`;
 }
 
+// The image bank uses Unsplash URLs that carry a width parameter (w=800); the
+// same photo is requested at 400/800 so phones and 3-column desktop cards don't
+// each download the largest size.
+function menuImgSrcSet(url) {
+  if (!/[?&]w=800\b/.test(url)) return "";
+  const at = (w) => url.replace(/([?&])w=800\b/, "$1w=" + w) + " " + w + "w";
+  return `srcset="${at(400)}, ${at(800)}" sizes="(min-width: 1024px) 400px, (min-width: 640px) 45vw, 100vw"`;
+}
+
 function renderMenuCard(item) {
   const badge = item.badge ? BADGES[item.badge] : null;
   const priceBadge = item.price ? formatPrice(item.price) : null;
@@ -624,7 +654,7 @@ function renderMenuCard(item) {
         data-category="${item.category}"
         data-tilt data-tilt-max="6" data-tilt-speed="500" data-tilt-glare data-tilt-max-glare="0.12" data-tilt-scale="1.015">
       <div class="relative overflow-hidden">
-        <img src="${item.img}" alt="${item.name}" loading="lazy"
+        <img src="${item.img}" ${menuImgSrcSet(item.img)} alt="${item.name}" width="400" height="208" loading="lazy" decoding="async"
           onerror="this.onerror=null;this.replaceWith(Object.assign(document.createElement('div'),{className:'h-52 w-full flex items-center justify-center text-6xl bg-gradient-to-br from-[#2a1a10] via-[#331505] to-[#1a1010]',textContent:'🍽️'}))"
           class="h-52 w-full object-cover transition duration-500 group-hover:scale-110" />
         ${badge ? `<span class="absolute left-3 top-3 rounded-full px-3 py-1 text-xs font-semibold ${badge.classes} shadow">${badge.label}</span>` : ""}
@@ -651,6 +681,7 @@ function applyFilter(category) {
 
   document.querySelectorAll("[data-filter]").forEach((btn) => {
     const active = btn.dataset.filter === category;
+    btn.setAttribute("aria-pressed", String(active));
     btn.classList.toggle("bg-orange-600", active);
     btn.classList.toggle("text-white", active);
     btn.classList.toggle("border-orange-600", active);
@@ -673,7 +704,8 @@ const cartEmptyEl = document.getElementById("cart-empty");
 const cartTotalEl = document.getElementById("cart-total");
 const cartCountBadges = document.querySelectorAll("[data-cart-count]");
 const checkoutFieldsEl = document.getElementById("checkout-fields");
-const checkoutNameEl = document.getElementById("checkout-name");
+const checkoutAccountEl = document.getElementById("checkout-account");
+const checkoutLoginEl = document.getElementById("checkout-login");
 const checkoutPhoneEl = document.getElementById("checkout-phone");
 const checkoutAddressEl = document.getElementById("checkout-address");
 const checkoutErrorEl = document.getElementById("checkout-error");
@@ -689,22 +721,38 @@ document.querySelectorAll(".order-type-btn").forEach((btn) => {
       b.classList.toggle("text-white", active);
       b.classList.toggle("border-white/10", !active);
       b.classList.toggle("text-gray-400", !active);
+      b.setAttribute("aria-pressed", String(active));
     });
     checkoutAddressEl.hidden = checkoutOrderType !== "delivery";
   });
 });
 
+// While closed the drawer is inert: it's only translated off-screen, so without
+// this its buttons would still be reachable with the Tab key.
+let cartOpener = null;
+
 function openCart() {
+  refreshAccountUi();
+  cartOpener = document.activeElement;
+  cartDrawer.inert = false;
   cartDrawer.classList.add("open");
   cartBackdrop.classList.add("open");
   document.body.classList.add("overflow-hidden");
+  cartDrawer.querySelector("[data-cart-close]").focus();
 }
 
 function closeCart() {
   cartDrawer.classList.remove("open");
   cartBackdrop.classList.remove("open");
   document.body.classList.remove("overflow-hidden");
+  cartDrawer.inert = true;
+  if (cartOpener && document.contains(cartOpener)) cartOpener.focus();
+  cartOpener = null;
 }
+
+document.addEventListener("keydown", (e) => {
+  if (e.key === "Escape" && cartDrawer.classList.contains("open")) closeCart();
+});
 
 function renderCart() {
   const lines = Object.entries(cart).filter(([, line]) => line.qty > 0);
@@ -721,7 +769,7 @@ function renderCart() {
 
       return `
         <li class="flex items-center gap-3 border-b border-white/5 py-4">
-          <img src="${item.img}" alt="${item.name}" class="h-16 w-16 rounded-xl object-cover"
+          <img src="${item.img}" alt="${item.name}" width="64" height="64" loading="lazy" decoding="async" class="h-16 w-16 rounded-xl object-cover"
             onerror="this.onerror=null;this.replaceWith(Object.assign(document.createElement('div'),{className:'flex h-16 w-16 items-center justify-center rounded-xl bg-[#241611] text-2xl',textContent:'🍽️'}))" />
           <div class="flex-1">
             <p class="text-sm font-semibold text-white">${label}</p>
@@ -738,6 +786,7 @@ function renderCart() {
     })
     .join("");
 
+  saveCart();
   cartTotalEl.textContent = formatPrice(cartTotal());
   cartCountBadges.forEach((el) => {
     const count = cartCount();
@@ -808,16 +857,32 @@ function clearCheckoutError() {
 const checkoutBtn = document.getElementById("checkout-btn");
 const checkoutLabel = document.getElementById("checkout-label");
 
+function showLoginRequired() {
+  checkoutLoginEl.classList.remove("hidden");
+  const next = "/?resume=cart";
+  document.getElementById("checkout-login-link").setAttribute("href", loginUrl(next));
+  document.getElementById("checkout-signup-link").setAttribute("href", signupUrl(next));
+  saveCart();
+}
+
 checkoutBtn.addEventListener("click", async () => {
   if (cartCount() === 0) return;
   clearCheckoutError();
+  checkoutLoginEl.classList.add("hidden");
 
-  const customerName = checkoutNameEl.value.trim();
+  // Ordering needs an account. The cart is already saved, so after logging in
+  // the customer lands back here with it intact (see ?resume=cart below).
+  const me = await Account.me();
+  if (!me) {
+    showLoginRequired();
+    return;
+  }
+
   const phone = checkoutPhoneEl.value.trim();
   const deliveryAddress = checkoutAddressEl.value.trim();
 
-  if (!customerName || !phone) {
-    showCheckoutError("Please enter your name and phone number.");
+  if (!phone) {
+    showCheckoutError("Please enter a phone number we can reach you on.");
     return;
   }
   if (checkoutOrderType === "delivery" && !deliveryAddress) {
@@ -838,29 +903,36 @@ checkoutBtn.addEventListener("click", async () => {
   checkoutLabel.textContent = "Placing order…";
 
   try {
-    const res = await fetch(`${API_BASE_URL}/orders`, {
+    // Name and email come from the account on the server; the client only
+    // says what and where. (Prices are never sent — the server prices the order.)
+    const res = await apiFetch("/orders", {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        customerName,
+      body: {
         phone,
         items,
         orderType: checkoutOrderType,
         ...(checkoutOrderType === "delivery" ? { deliveryAddress } : {}),
-      }),
+      },
     });
-    const body = await res.json();
 
-    if (!res.ok || !body.success) {
-      throw new Error(body?.error?.message || "Could not place your order. Please try again.");
+    if (res.status === 401) {
+      // Session expired since the page loaded.
+      Account.set(null);
+      refreshAccountUi();
+      checkoutLabel.textContent = originalText;
+      checkoutBtn.disabled = false;
+      showLoginRequired();
+      return;
+    }
+    if (!res.ok) {
+      throw new Error(apiErrorMessage(res, "Could not place your order. Please try again."));
     }
 
-    checkoutLabel.textContent = `Order Placed! 🔥 (${body.data.id})`;
+    checkoutLabel.textContent = `Order Placed! 🔥 (${res.data.id})`;
     setTimeout(() => {
       Object.keys(cart).forEach((key) => delete cart[key]);
       renderCart();
       MENU_ITEMS.forEach((item) => syncCardLabel(item.id));
-      checkoutNameEl.value = "";
       checkoutPhoneEl.value = "";
       checkoutAddressEl.value = "";
       checkoutLabel.textContent = originalText;
@@ -886,6 +958,9 @@ const closeIcon = document.getElementById("close-icon");
 
 mobileMenuBtn.addEventListener("click", () => {
   const isOpen = mobileMenu.classList.toggle("open-menu");
+  mobileMenu.inert = !isOpen;
+  mobileMenuBtn.setAttribute("aria-expanded", String(isOpen));
+  mobileMenuBtn.setAttribute("aria-label", isOpen ? "Close menu" : "Open menu");
   mobileMenu.classList.toggle("max-h-0");
   mobileMenu.classList.toggle("max-h-[28rem]");
   hamburgerIcon.classList.toggle("hidden", isOpen);
@@ -896,6 +971,9 @@ mobileMenu.querySelectorAll("a").forEach((link) =>
   link.addEventListener("click", () => {
     mobileMenu.classList.remove("open-menu", "max-h-[28rem]");
     mobileMenu.classList.add("max-h-0");
+    mobileMenu.inert = true;
+    mobileMenuBtn.setAttribute("aria-expanded", "false");
+    mobileMenuBtn.setAttribute("aria-label", "Open menu");
     hamburgerIcon.classList.remove("hidden");
     closeIcon.classList.add("hidden");
   })
@@ -911,17 +989,77 @@ window.addEventListener("scroll", () => {
 
 // ---- Reservation form --------------------------------------------------------
 const reservationForm = document.getElementById("reservation-form");
+{
+  // Local-date "today" (toISOString would be UTC and can be off by a day).
+  const now = new Date();
+  const pad = (n) => String(n).padStart(2, "0");
+  document.getElementById("reservation-date").min = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`;
+  document.getElementById("year").textContent = now.getFullYear();
+}
 const reservationSuccess = document.getElementById("reservation-success");
 const reservationErrorEl = document.getElementById("reservation-error");
 const reservationSubmitBtn = document.getElementById("reservation-submit");
 const reservationSubmitLabel = document.getElementById("reservation-submit-label");
 
+const RES_DRAFT_KEY = "grillout:resDraft";
+const reservationLoginEl = document.getElementById("reservation-login");
+const RES_FIELDS = ["res-phone", "reservation-date", "res-time", "res-guests", "res-notes"];
+
+function saveReservationDraft() {
+  try {
+    const draft = {};
+    RES_FIELDS.forEach((id) => (draft[id] = document.getElementById(id).value));
+    sessionStorage.setItem(RES_DRAFT_KEY, JSON.stringify(draft));
+  } catch {
+    /* storage blocked — they just retype after logging in */
+  }
+}
+
+function restoreReservationDraft() {
+  try {
+    const draft = JSON.parse(sessionStorage.getItem(RES_DRAFT_KEY) || "null");
+    if (!draft) return;
+    RES_FIELDS.forEach((id) => {
+      if (typeof draft[id] === "string") document.getElementById(id).value = draft[id];
+    });
+  } catch {
+    /* ignore a corrupt draft */
+  }
+}
+
+function clearReservationDraft() {
+  try {
+    sessionStorage.removeItem(RES_DRAFT_KEY);
+  } catch {
+    /* ignore */
+  }
+}
+
+function showReservationLogin() {
+  saveReservationDraft();
+  const next = "/#reservations";
+  document.getElementById("reservation-login-link").setAttribute("href", loginUrl(next));
+  document.getElementById("reservation-signup-link").setAttribute("href", signupUrl(next));
+  reservationLoginEl.classList.remove("hidden");
+  reservationLoginEl.scrollIntoView({ block: "nearest", behavior: "smooth" });
+}
+
+restoreReservationDraft();
+
 reservationForm.addEventListener("submit", async (e) => {
   e.preventDefault();
   reservationErrorEl.classList.add("hidden");
+  reservationLoginEl.classList.add("hidden");
 
+  // Reserving needs an account; the form is kept so they return to it.
+  const me = await Account.me();
+  if (!me) {
+    showReservationLogin();
+    return;
+  }
+
+  // Name and email come from the account on the server — not from this form.
   const payload = {
-    customerName: document.getElementById("res-name").value.trim(),
     phone: document.getElementById("res-phone").value.trim(),
     date: document.getElementById("reservation-date").value,
     time: document.getElementById("res-time").value,
@@ -935,18 +1073,19 @@ reservationForm.addEventListener("submit", async (e) => {
   reservationSubmitLabel.textContent = "Booking…";
 
   try {
-    const res = await fetch(`${API_BASE_URL}/reservations`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(payload),
-    });
-    const body = await res.json();
+    const res = await apiFetch("/reservations", { method: "POST", body: payload });
 
-    if (!res.ok || !body.success) {
-      const firstFieldError = body?.error?.details && Object.values(body.error.details)[0]?.[0];
-      throw new Error(firstFieldError || body?.error?.message || "Could not confirm your reservation.");
+    if (res.status === 401) {
+      Account.set(null);
+      refreshAccountUi();
+      showReservationLogin();
+      return;
+    }
+    if (!res.ok) {
+      throw new Error(apiErrorMessage(res, "Could not confirm your reservation."));
     }
 
+    clearReservationDraft();
     reservationForm.classList.add("hidden");
     reservationSuccess.classList.remove("hidden");
   } catch (err) {
@@ -966,6 +1105,41 @@ document.getElementById("reservation-reset").addEventListener("click", () => {
   reservationForm.classList.remove("hidden");
   reservationSuccess.classList.add("hidden");
   reservationErrorEl.classList.add("hidden");
+});
+
+// ---- Account-aware UI -------------------------------------------------------
+// Nav link (Login / My Account), the "ordering as" line in the cart, and the
+// name shown on the reservation form all follow the logged-in customer.
+async function refreshAccountUi() {
+  const me = await Account.me();
+  updateAccountLinks();
+
+  if (me) {
+    checkoutAccountEl.textContent = `Ordering as ${me.name}`;
+    checkoutAccountEl.classList.remove("hidden");
+    checkoutLoginEl.classList.add("hidden");
+    reservationLoginEl.classList.add("hidden");
+  } else {
+    checkoutAccountEl.classList.add("hidden");
+  }
+
+  const resName = document.getElementById("res-name");
+  if (me) {
+    resName.value = me.name;
+    resName.readOnly = true;
+  } else {
+    if (resName.readOnly) resName.value = "";
+    resName.readOnly = false;
+  }
+}
+
+refreshAccountUi().then(async () => {
+  // Coming back from /login or /signup with an order in progress: reopen the cart.
+  const params = new URLSearchParams(location.search);
+  if (params.get("resume") === "cart") {
+    history.replaceState(null, "", location.pathname + location.hash);
+    if ((await Account.me()) && cartCount() > 0) openCart();
+  }
 });
 
 // ---- Hero: 3D parallax, ember/smoke particles, mouse tilt -------------------

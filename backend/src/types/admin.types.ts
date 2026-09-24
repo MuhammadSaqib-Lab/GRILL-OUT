@@ -12,6 +12,7 @@ export interface AdminProfile {
 export interface AdminJwtPayload {
   sub: string; // AdminUser.id
   email: string;
+  ver: number; // AdminUser.sessionVersion at the time the token was issued
 }
 
 export interface PaginationParams {
@@ -68,6 +69,7 @@ export interface AdminReservationSummary {
   time: string;
   guests: string;
   specialRequests?: string;
+  adminMessage?: string;
   status: string;
   createdAt: string;
 }
@@ -75,7 +77,8 @@ export interface AdminReservationSummary {
 export interface AdminCustomerSummary {
   id: string;
   name: string;
-  phone: string;
+  /** Own phone, else the phone from their most recent order (accounts have none of their own). */
+  phone: string | null;
   email?: string;
   totalOrders: number;
   totalSpent: number;

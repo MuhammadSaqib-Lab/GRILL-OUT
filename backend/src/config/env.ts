@@ -55,6 +55,12 @@ const envSchema = z.object({
     .transform((v) => v === "true"),
   SMTP_USER: z.string().optional(),
   SMTP_PASS: z.string().optional(),
+  // Explicit opt-out for launching production before an email provider exists:
+  // emails are then only logged, never sent. Off by default — see the production checks below.
+  ALLOW_NO_SMTP: z
+    .enum(["true", "false"])
+    .default("false")
+    .transform((v) => v === "true"),
   MAIL_FROM: z.string().min(3).default("Grill Out <no-reply@grillout.local>"),
   // Where "new order" / "new reservation" alerts go. Falls back to ADMIN_EMAIL
   // if that happens to be set; with neither, alerts are skipped (and logged).
@@ -104,10 +110,21 @@ if (parsed.data.NODE_ENV === "production") {
   if (/replace-with|change-this|changeme/i.test(parsed.data.CUSTOMER_JWT_SECRET)) {
     problems.push("CUSTOMER_JWT_SECRET is still a placeholder");
   }
-  if (!parsed.data.SMTP_HOST) {
-    problems.push("SMTP_HOST is required in production (order/reservation emails would silently not be sent)");
+  const noMail = !parsed.data.SMTP_HOST;
+  if (noMail && !parsed.data.ALLOW_NO_SMTP) {
+    problems.push(
+      "SMTP_HOST is required in production (order/reservation emails would silently not be sent). " +
+        "To launch without email for now, set ALLOW_NO_SMTP=true"
+    );
   }
-  if (!parsed.data.ADMIN_NOTIFY_EMAIL && !parsed.data.ADMIN_EMAIL) {
+  if (noMail && parsed.data.ALLOW_NO_SMTP) {
+    console.warn(
+      "WARNING: ALLOW_NO_SMTP=true and SMTP_HOST is not set — NO emails will be sent. " +
+        "Customers get no confirmations and the restaurant gets no order/reservation alerts. Check the dashboard."
+    );
+  }
+  // Alerts can't be delivered without a mail server, so the recipient only matters when mail is on.
+  if (!noMail && !parsed.data.ADMIN_NOTIFY_EMAIL && !parsed.data.ADMIN_EMAIL) {
     problems.push("ADMIN_NOTIFY_EMAIL is required in production (the restaurant would never be told about new orders/reservations)");
   }
   const badOrigins = parsed.data.FRONTEND_URL.split(",")

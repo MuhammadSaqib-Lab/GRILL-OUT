@@ -16,8 +16,9 @@
         </div>
       </div>
       <p class="mt-5 text-xs text-gray-600">
-        Account details are managed via environment configuration. To change the admin password, update
-        <code class="rounded bg-white/5 px-1 py-0.5">ADMIN_PASSWORD</code> and re-run the seed script.
+        Admin credentials are managed on the server, never in this dashboard. To change them, run
+        <code class="rounded bg-white/5 px-1 py-0.5">npm run admin:setup</code> there: it asks for the new email and password.
+        All admin sessions are signed out.
       </p>
       <button id="logout-btn-2" type="button" class="mt-6 w-full rounded-full border border-white/10 py-2.5 text-sm font-semibold text-red-400 hover:border-red-500">Log Out</button>
     </div>`;

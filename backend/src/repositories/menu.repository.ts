@@ -49,7 +49,10 @@ const includeRelations = { options: true, category: true } as const;
 
 export class PrismaMenuRepository implements MenuRepository {
   async findAll(): Promise<MenuItem[]> {
+    // Items in a deactivated category are hidden with it. (Unavailable items
+    // stay in the list, flagged available:false, so the site can show them as sold out.)
     const rows = await prisma.menuItem.findMany({
+      where: { category: { isActive: true } },
       include: includeRelations,
       orderBy: [{ categoryId: "asc" }, { sortOrder: "asc" }],
     });
@@ -63,7 +66,7 @@ export class PrismaMenuRepository implements MenuRepository {
 
   async findByCategory(categorySlug: string): Promise<MenuItem[]> {
     const rows = await prisma.menuItem.findMany({
-      where: { category: { slug: categorySlug } },
+      where: { category: { slug: categorySlug, isActive: true } },
       include: includeRelations,
       orderBy: { sortOrder: "asc" },
     });

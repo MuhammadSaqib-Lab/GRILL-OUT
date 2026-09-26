@@ -138,6 +138,7 @@ The session is an **httpOnly cookie** (`grillout_session`, `__Host-` prefixed in
 | POST | `/api/auth/customer/login` | `{ email, password }` → `200` + cookie. Wrong password / unknown email / legacy guest: the same `401`, same work factor. Rate limited (separate counter). |
 | POST | `/api/auth/customer/logout` | Clears the cookie and revokes all of this customer's sessions. Harmless without a session. |
 | GET | `/api/auth/customer/me` | `{ name, email }`, or `401`. |
+| GET | `/api/auth/customer/session` | Same check, but always `200`: `{ customer: { name, email } }` or `{ customer: null }`. Used by the site on every page so a logged-out visit raises no 401 in the browser console. |
 | GET | `/api/customer/orders` | The customer's own orders, newest first (max 100), each with items, totals, status and `adminMessage`. |
 | GET | `/api/customer/orders/:id` | One of their own orders, else `404`. |
 | GET | `/api/customer/reservations` | Their own reservations, newest first. |
@@ -241,15 +242,16 @@ this API — see [Frontend integration](#frontend-integration-changes).
 }
 ```
 - `specialRequests` optional. `customerName`/`email` are not accepted (ignored).
-- `date` must be `YYYY-MM-DD`, today or later.
-- `time` must be `HH:MM` (24h).
+- `date` must be a real calendar date `YYYY-MM-DD`, today or later **in the restaurant's timezone** (`RESTAURANT_TIMEZONE`, default `Asia/Karachi`).
+- `time` must be `HH:MM` (24h); for today it must still be in the future (restaurant clock).
+- A customer who already has a `PENDING`/`CONFIRMED` reservation at the same date and time gets `409 CONFLICT` ("You already have a reservation at that date and time."); after cancelling it they can book that slot again.
 - `guests` must be exactly one of `"1-2" | "3-4" | "5-6" | "7+"`.
 
 **Response `201`**
 ```json
 {
   "success": true,
-  "message": "Reservation confirmed",
+  "message": "Reservation received",
   "data": {
     "id": "RES-A1B2C3D4",
     "customerName": "Ahmed Khan",
@@ -320,6 +322,7 @@ checks the token's session version. A deleted account or a logout revokes access
 | PATCH | `/api/admin/orders/:id/status` | `{ status, message? }` — `message` is an optional note to the customer (string, trimmed, ≤ 500 chars; `""`, whitespace, `null` or omitted = none). It replaces the previous message, so a note only ever belongs to the current status; a change with no message clears it. Orders are never deleted — rejecting an order is `status: "CANCELLED"` (+ reason). Terminal orders can't be reopened. |
 | GET / PATCH | `/api/admin/reservations[/:id[/status]]` | Filters: `status`, `when=today\|upcoming`, `search`. PATCH takes `{ status, message? }` exactly like orders. |
 | GET | `/api/admin/customers` | `search`, pagination; totals computed server-side. |
+| GET | `/api/admin/customers/:id` | One customer with their order and reservation history (latest 100 of each). Never includes credentials. `404` unknown id, `400` malformed id. |
 | GET/POST/PATCH/DELETE | `/api/admin/menu/categories[/:id]` | DELETE deactivates instead if the category still has items. |
 | GET/POST/PATCH/DELETE | `/api/admin/menu/items[/:id]` | DELETE deactivates instead if any past order references the item. Image must be an http(s) URL; price ≤ 1,000,000. |
 

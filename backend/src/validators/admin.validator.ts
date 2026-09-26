@@ -4,7 +4,8 @@ import { MAX_INT4, httpUrl } from "./common";
 // ---- Auth -------------------------------------------------------------------
 
 export const adminLoginSchema = z.object({
-  email: z.string().trim().email("Enter a valid email").max(254),
+  // Lower-cased so login is case-insensitive (setup stores the address lower-cased).
+  email: z.string().trim().toLowerCase().email("Enter a valid email").max(254),
   // bcrypt only uses the first 72 bytes; capping length also stops huge
   // bodies being used to burn CPU in the hash comparison.
   password: z.string().min(1, "Password is required").max(128),
@@ -132,6 +133,9 @@ export const adminUpdateMenuItemSchema = z
 // Capped at Postgres' INT4 max — a larger value would make the query itself
 // throw instead of simply finding nothing.
 // Digits only: z.coerce.number() alone would also accept "1e3", "0x10" or " 5 ".
+// Customer ids are cuids: lower-case letters and digits only.
+export const customerIdParamSchema = z.object({ id: z.string().regex(/^[a-z0-9]{20,32}$/, "Invalid customer id") });
+
 export const idParamSchema = z.object({
   id: z
     .string()

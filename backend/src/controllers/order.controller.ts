@@ -20,6 +20,7 @@ export const orderController = {
   cancel: asyncHandler(async (req: Request, res: Response) => {
     const { id } = req.params as unknown as { id: string };
     const order = await orderService.cancelOrder(id, me(req).id);
+    emailService.notifyOrderCancelledByCustomer(order);
     sendSuccess(res, order, 200, "Order cancelled");
   }),
 };

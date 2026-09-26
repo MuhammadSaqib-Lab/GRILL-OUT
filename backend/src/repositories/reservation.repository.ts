@@ -21,8 +21,15 @@ export interface ReservationRepository {
   /** Scoped by owner: someone else's reservation is indistinguishable from a missing one. */
   findByIdForCustomer(id: string, customerId: string): Promise<Reservation | undefined>;
   listByCustomer(customerId: string): Promise<Reservation[]>;
-  /** `adminMessage` replaces any previous message; null/undefined clears it. */
-  updateStatus(id: string, status: ReservationStatus, adminMessage?: string | null): Promise<Reservation>;
+  /** Atomic, conditional move — see OrderRepository.transition. */
+  transition(
+    id: string,
+    allowedFrom: ReservationStatus[],
+    status: ReservationStatus,
+    adminMessage?: string | null
+  ): Promise<Reservation | undefined>;
+  /** An existing PENDING/CONFIRMED reservation by this customer for the same date and time. */
+  findActiveDuplicate(customerId: string, date: string, time: string): Promise<Reservation | undefined>;
 }
 
 function toDomainReservation(row: PrismaReservation): Reservation {
@@ -83,9 +90,24 @@ export class PrismaReservationRepository implements ReservationRepository {
     return rows.map(toDomainReservation);
   }
 
-  async updateStatus(id: string, status: ReservationStatus, adminMessage?: string | null): Promise<Reservation> {
-    const row = await prisma.reservation.update({ where: { id }, data: { status, adminMessage: adminMessage ?? null } });
-    return toDomainReservation(row);
+  async transition(
+    id: string,
+    allowedFrom: ReservationStatus[],
+    status: ReservationStatus,
+    adminMessage?: string | null
+  ): Promise<Reservation | undefined> {
+    const result = await prisma.reservation.updateMany({
+      where: { id, status: { in: allowedFrom } },
+      data: { status, adminMessage: adminMessage ?? null },
+    });
+    return result.count === 0 ? undefined : this.findById(id);
+  }
+
+  async findActiveDuplicate(customerId: string, date: string, time: string): Promise<Reservation | undefined> {
+    const row = await prisma.reservation.findFirst({
+      where: { customerId, date, time, status: { in: ["PENDING", "CONFIRMED"] } },
+    });
+    return row ? toDomainReservation(row) : undefined;
   }
 }
 

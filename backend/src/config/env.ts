@@ -3,6 +3,9 @@ import { z } from "zod";
 
 // Fail fast and loud if the environment is misconfigured, rather than
 // limping along with `undefined` sprinkled through the app.
+// A blank line in .env (`ADMIN_EMAIL=`) means "not set", not "invalid".
+const optionalEmail = z.preprocess((v) => (v === "" ? undefined : v), z.string().email().optional());
+
 const envSchema = z.object({
   PORT: z.coerce.number().int().positive().default(4000),
   NODE_ENV: z.enum(["development", "test", "production"]).default("development"),
@@ -20,14 +23,14 @@ const envSchema = z.object({
       message: "DATABASE_URL must be a postgresql:// connection string",
     }),
 
-  // Admin dashboard auth. ADMIN_EMAIL/ADMIN_PASSWORD are read only by
-  // prisma/seed.ts to bootstrap the first AdminUser (hashed before it ever
-  // touches the database) — the running server never reads them again.
+  // Admin dashboard auth. The admin's email/password are deliberately NOT part
+  // of this schema and have no defaults: the running server never needs them
+  // (it only verifies logins against the stored bcrypt hash). They are read
+  // solely by `npm run admin:setup` (scripts/setup-admin.ts), which validates
+  // them and stores only a hash — see DEPLOYMENT.md.
   ADMIN_JWT_SECRET: z
     .string()
     .min(32, "ADMIN_JWT_SECRET must be at least 32 characters — generate one with `openssl rand -hex 32`"),
-  ADMIN_EMAIL: z.string().email().default("admin@grillout.local"),
-  ADMIN_PASSWORD: z.string().min(8, "ADMIN_PASSWORD must be at least 8 characters").default("ChangeMe123!"),
   ADMIN_SESSION_HOURS: z.coerce.number().positive().max(72).default(8),
   ADMIN_LOGIN_RATE_LIMIT_MAX: z.coerce.number().int().positive().default(10),
 
@@ -53,8 +56,24 @@ const envSchema = z.object({
   SMTP_USER: z.string().optional(),
   SMTP_PASS: z.string().optional(),
   MAIL_FROM: z.string().min(3).default("Grill Out <no-reply@grillout.local>"),
-  // Where "new order" / "new reservation" alerts go. Falls back to ADMIN_EMAIL.
-  ADMIN_NOTIFY_EMAIL: z.string().email().optional(),
+  // Where "new order" / "new reservation" alerts go. Falls back to ADMIN_EMAIL
+  // if that happens to be set; with neither, alerts are skipped (and logged).
+  ADMIN_NOTIFY_EMAIL: optionalEmail,
+  ADMIN_EMAIL: optionalEmail,
+
+  // The restaurant's own timezone (IANA name). "Today" in the dashboard and the
+  // reservation date/time checks use it, whatever timezone the server runs in.
+  RESTAURANT_TIMEZONE: z
+    .string()
+    .default("Asia/Karachi")
+    .refine((tz) => {
+      try {
+        new Intl.DateTimeFormat("en", { timeZone: tz });
+        return true;
+      } catch {
+        return false;
+      }
+    }, "RESTAURANT_TIMEZONE must be a valid IANA timezone, e.g. Asia/Karachi"),
 
   // Number of reverse-proxy hops in front of this app (0 = none/direct).
   // Rate limiting keys on the client IP, which behind a proxy is only correct
@@ -82,14 +101,14 @@ if (parsed.data.NODE_ENV === "production") {
   if (/replace-with|change-this|changeme/i.test(parsed.data.ADMIN_JWT_SECRET)) {
     problems.push("ADMIN_JWT_SECRET is still a placeholder");
   }
-  if (/replace-with|change-this|changeme/i.test(parsed.data.ADMIN_PASSWORD)) {
-    problems.push("ADMIN_PASSWORD is still a placeholder/default");
-  }
   if (/replace-with|change-this|changeme/i.test(parsed.data.CUSTOMER_JWT_SECRET)) {
     problems.push("CUSTOMER_JWT_SECRET is still a placeholder");
   }
   if (!parsed.data.SMTP_HOST) {
     problems.push("SMTP_HOST is required in production (order/reservation emails would silently not be sent)");
+  }
+  if (!parsed.data.ADMIN_NOTIFY_EMAIL && !parsed.data.ADMIN_EMAIL) {
+    problems.push("ADMIN_NOTIFY_EMAIL is required in production (the restaurant would never be told about new orders/reservations)");
   }
   const badOrigins = parsed.data.FRONTEND_URL.split(",")
     .map((o) => o.trim())

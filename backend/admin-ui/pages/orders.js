@@ -192,7 +192,7 @@ function openStatusPanel(body, id, newStatus, closeModal) {
     submit.disabled = true;
     try {
       await AdminAPI.patch(`/orders/${encodeURIComponent(id)}/status`, { status: newStatus, message: message || null });
-      showToast(`Order ${id} ${danger ? "cancelled" : "marked as " + newStatus.replace(/_/g, " ")}${message ? " — message sent" : ""}`);
+      showToast(`Order ${id} ${danger ? "cancelled" : "marked as " + newStatus.replace(/_/g, " ")}${message ? " — message saved to their account" : ""}`);
       closeModal();
       load();
     } catch (err) {

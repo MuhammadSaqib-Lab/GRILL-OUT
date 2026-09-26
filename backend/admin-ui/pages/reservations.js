@@ -133,7 +133,7 @@ function openStatusModal(id, status, customerName) {
     submit.disabled = true;
     try {
       await AdminAPI.patch(`/reservations/${encodeURIComponent(id)}/status`, { status, message: message || null });
-      showToast(`Reservation ${danger ? "cancelled" : "marked as " + status}${message ? " — message sent" : ""}`);
+      showToast(`Reservation ${danger ? "cancelled" : "marked as " + status}${message ? " — message saved to their account" : ""}`);
       close();
       load();
     } catch (err) {

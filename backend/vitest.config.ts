@@ -12,6 +12,8 @@ export default defineConfig({
       // High enough that the rate-limit test suite itself never trips it
       // unintentionally on unrelated tests sharing the same limiter instance.
       RATE_LIMIT_MAX: "1000",
+      // A fixed, obviously-fake inbox for the "email to the restaurant" tests.
+      ADMIN_NOTIFY_EMAIL: "ops@grillout.test",
       // Signups/logins in the test suite are frequent; the dedicated rate-limit
       // test (customerRateLimit.test.ts) re-imports the app with a low value.
       CUSTOMER_AUTH_RATE_LIMIT_MAX: "1000",

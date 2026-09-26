@@ -74,6 +74,34 @@ export interface AdminReservationSummary {
   createdAt: string;
 }
 
+export interface AdminCustomerDetail {
+  id: string;
+  name: string;
+  email?: string;
+  phone: string | null;
+  /** "account" = registered on the website; "guest" = placed orders before accounts existed. */
+  kind: "account" | "guest";
+  createdAt: string;
+  orders: Array<{
+    id: string;
+    status: string;
+    orderType: string;
+    total: number;
+    itemCount: number;
+    adminMessage?: string;
+    createdAt: string;
+  }>;
+  reservations: Array<{
+    id: string;
+    status: string;
+    date: string;
+    time: string;
+    guests: string;
+    adminMessage?: string;
+    createdAt: string;
+  }>;
+}
+
 export interface AdminCustomerSummary {
   id: string;
   name: string;

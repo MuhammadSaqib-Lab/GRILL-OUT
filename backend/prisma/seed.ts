@@ -12,7 +12,6 @@
 import { PrismaClient } from "@prisma/client";
 import { CATEGORIES, MENU_ITEMS } from "../src/data/menu.data";
 import { env } from "../src/config/env";
-import { hashPassword } from "../src/utils/password";
 
 const prisma = new PrismaClient();
 
@@ -24,8 +23,8 @@ function slugify(name: string): string {
 }
 
 async function main() {
-  // The seed resets every menu item/category back to the source data and
-  // re-hashes the admin password. Fine for a fresh database; destructive on a
+  // The seed resets every menu item/category back to the source data
+  // (it never touches admin accounts). Fine for a fresh database; destructive on a
   // live one where the owner has been editing prices and images.
   if (env.isProduction && process.env.ALLOW_PRODUCTION_SEED !== "true") {
     throw new Error(
@@ -143,20 +142,9 @@ async function main() {
   const optionCount = await prisma.menuItemOption.count();
   console.log(`Done. ${categoryCount} categories, ${itemCount} menu items, ${optionCount} options in the database.`);
 
-  // Bootstrap the first admin user from ADMIN_EMAIL/ADMIN_PASSWORD — never
-  // hardcoded, never stored as plaintext. Upsert keyed on email, so this is
-  // idempotent like everything else here: re-running just re-hashes and
-  // re-syncs the same account rather than creating a second one. If an
-  // admin already exists with this email, only its name/password are
-  // refreshed — this intentionally does NOT touch other existing admin
-  // accounts created later via the dashboard itself.
-  const passwordHash = await hashPassword(env.ADMIN_PASSWORD);
-  await prisma.adminUser.upsert({
-    where: { email: env.ADMIN_EMAIL },
-    create: { email: env.ADMIN_EMAIL, passwordHash, name: "Grill Out Admin" },
-    update: { passwordHash },
-  });
-  console.log(`Admin user ready: ${env.ADMIN_EMAIL}`);
+  // Note: this seed deliberately does NOT create an admin account. The admin's
+  // email/password are supplied by the operator via `npm run admin:setup`
+  // (see DEPLOYMENT.md) — no credential lives in this file or in git.
 }
 
 main()

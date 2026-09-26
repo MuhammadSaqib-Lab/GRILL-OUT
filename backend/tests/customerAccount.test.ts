@@ -168,7 +168,7 @@ describe("reservations belong to the logged-in customer", () => {
     const ids = list.body.data.map((r: { id: string }) => r.id);
     expect(ids).toContain(mine.body.data.id);
     expect(ids).not.toContain(theirs.body.data.id);
-    expect(list.body.data[0]).toMatchObject({ status: "PENDING", guests: "3-4", time: "19:30" });
+    expect(list.body.data[0]).toMatchObject({ status: "PENDING", guests: "3-4", time: mine.body.data.time });
   });
 
   it("IDOR: another customer's reservation is a 404, for read and cancel", async () => {

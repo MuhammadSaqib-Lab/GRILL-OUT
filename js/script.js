@@ -595,14 +595,17 @@ function cartTotal() {
 
 // ---- Filter tabs (generated from CATEGORIES) -------------------------------
 const filterTabsEl = document.getElementById("filter-tabs");
-filterTabsEl.innerHTML = CATEGORIES.map(
-  (c, i) => `
-  <button type="button" data-filter="${c.key}" aria-pressed="${i === 0}"
+function renderFilterTabs() {
+  filterTabsEl.innerHTML = CATEGORIES.map(
+    (c, i) => `
+  <button type="button" data-filter="${esc(c.key)}" aria-pressed="${i === 0}"
     class="rounded-full border px-5 py-2 text-sm font-semibold transition
       ${i === 0 ? "border-orange-600 bg-orange-600 text-white" : "border-white/10 text-gray-400 hover:border-flame hover:text-flame"}">
-    ${c.label}
+    ${esc(c.label)}
   </button>`
-).join("");
+  ).join("");
+}
+renderFilterTabs();
 
 // ---- Menu rendering ------------------------------------------------------
 const menuGrid = document.getElementById("menu-grid");
@@ -613,15 +616,17 @@ function optionButtonsHtml(item) {
       ${item.options
         .map(
           (opt) => `
-        <button type="button" data-add-to-cart="${item.id}" data-option="${opt.label}"
+        <button type="button" data-add-to-cart="${item.id}" data-option="${esc(opt.label)}"
           class="add-to-cart-btn rounded-full border border-orange-600/50 bg-orange-600/10 px-3 py-1.5 text-xs font-semibold text-orange-400
             transition hover:bg-orange-600 hover:text-white active:scale-95">
-          ${opt.label} <span class="opacity-80">· ${formatPrice(opt.price)}</span>
+          ${esc(opt.label)} <span class="opacity-80">· ${formatPrice(opt.price)}</span>
         </button>`
         )
         .join("")}
     </div>`;
 }
+
+const soldOutHtml = `<p class="mt-4 rounded-full border border-white/10 px-4 py-2.5 text-center text-sm font-semibold text-gray-500" role="status">Sold out</p>`;
 
 function singlePriceButtonHtml(item) {
   return `
@@ -651,19 +656,19 @@ function renderMenuCard(item) {
     <article class="menu-card group relative flex flex-col overflow-hidden rounded-2xl
         border border-white/5 bg-[#1a1a1a] transition-[border-color,box-shadow] duration-300
         hover:border-orange-500/40 hover:shadow-[0_10px_40px_-10px_rgba(255,107,0,0.35)]"
-        data-category="${item.category}"
+        data-category="${esc(item.category)}"
         data-tilt data-tilt-max="6" data-tilt-speed="500" data-tilt-glare data-tilt-max-glare="0.12" data-tilt-scale="1.015">
       <div class="relative overflow-hidden">
-        <img src="${item.img}" ${menuImgSrcSet(item.img)} alt="${item.name}" width="400" height="208" loading="lazy" decoding="async"
+        <img src="${esc(item.img)}" ${menuImgSrcSet(item.img)} alt="${esc(item.name)}" width="400" height="208" loading="lazy" decoding="async"
           onerror="this.onerror=null;this.replaceWith(Object.assign(document.createElement('div'),{className:'h-52 w-full flex items-center justify-center text-6xl bg-gradient-to-br from-[#2a1a10] via-[#331505] to-[#1a1010]',textContent:'🍽️'}))"
           class="h-52 w-full object-cover transition duration-500 group-hover:scale-110" />
         ${badge ? `<span class="absolute left-3 top-3 rounded-full px-3 py-1 text-xs font-semibold ${badge.classes} shadow">${badge.label}</span>` : ""}
         ${priceBadge ? `<span class="absolute right-3 top-3 rounded-full bg-black/70 px-3 py-1 text-sm font-bold text-orange-400 backdrop-blur">${priceBadge}</span>` : ""}
       </div>
       <div class="flex flex-1 flex-col p-5">
-        <h3 class="font-display text-2xl tracking-wide text-white">${item.name}</h3>
-        <p class="mt-2 flex-1 text-sm leading-relaxed text-gray-400">${item.desc}</p>
-        ${item.options ? optionButtonsHtml(item) : singlePriceButtonHtml(item)}
+        <h3 class="font-display text-2xl tracking-wide text-white">${esc(item.name)}</h3>
+        <p class="mt-2 flex-1 text-sm leading-relaxed text-gray-400">${esc(item.desc)}</p>
+        ${item.available === false ? soldOutHtml : item.options ? optionButtonsHtml(item) : singlePriceButtonHtml(item)}
       </div>
     </article>`;
 }
@@ -765,11 +770,11 @@ function renderCart() {
     .map(([key, line]) => {
       const item = MENU_ITEMS.find((m) => m.id === line.id);
       const price = priceFor(item, line.option);
-      const label = line.option && line.option !== "default" ? `${item.name} (${line.option})` : item.name;
+      const label = esc(line.option && line.option !== "default" ? `${item.name} (${line.option})` : item.name);
 
       return `
         <li class="flex items-center gap-3 border-b border-white/5 py-4">
-          <img src="${item.img}" alt="${item.name}" width="64" height="64" loading="lazy" decoding="async" class="h-16 w-16 rounded-xl object-cover"
+          <img src="${esc(item.img)}" alt="${esc(item.name)}" width="64" height="64" loading="lazy" decoding="async" class="h-16 w-16 rounded-xl object-cover"
             onerror="this.onerror=null;this.replaceWith(Object.assign(document.createElement('div'),{className:'flex h-16 w-16 items-center justify-center rounded-xl bg-[#241611] text-2xl',textContent:'🍽️'}))" />
           <div class="flex-1">
             <p class="text-sm font-semibold text-white">${label}</p>
@@ -796,6 +801,8 @@ function renderCart() {
 }
 
 function addToCart(id, option, buttonEl) {
+  const menuItem = MENU_ITEMS.find((m) => m.id === id);
+  if (!menuItem || menuItem.available === false) return;
   const key = cartKey(id, option);
   cart[key] = cart[key] || { id, option: option || "default", qty: 0 };
   cart[key].qty += 1;
@@ -1244,10 +1251,61 @@ if (!prefersReducedMotion) {
   }
 }
 
+// ---- Live menu ---------------------------------------------------------------
+// The menu above is only the fallback (offline / API down). When the API answers,
+// its menu wins: prices, sizes, names, sold-out flags and hidden categories all come
+// from the database the admin edits, so what a customer sees is what they are charged.
+async function syncMenuFromApi() {
+  let menuRes, catRes;
+  try {
+    [menuRes, catRes] = await Promise.all([apiFetch("/menu"), apiFetch("/categories")]);
+  } catch {
+    return; // API unreachable — keep the built-in menu
+  }
+  if (!menuRes.ok || !catRes.ok || !Array.isArray(menuRes.data) || !Array.isArray(catRes.data)) return;
+  if (menuRes.data.length === 0) return;
+
+  const live = menuRes.data.map((m) => ({
+    id: m.id,
+    name: m.name,
+    category: m.category,
+    desc: m.description,
+    img: m.image,
+    available: m.available !== false,
+    badge: (m.tags || []).includes("spicy") ? "spicy" : m.featured ? "chef" : undefined,
+    ...(m.options && m.options.length ? { options: m.options } : { price: m.price }),
+  }));
+  MENU_ITEMS.splice(0, MENU_ITEMS.length, ...live);
+  CATEGORIES.splice(0, CATEGORIES.length, { key: "all", label: "All" }, ...catRes.data.map((c) => ({ key: c.key, label: c.label })));
+
+  // Drop cart lines for dishes/sizes that no longer exist or are sold out, and say so.
+  let removed = 0;
+  for (const [key, line] of Object.entries(cart)) {
+    const item = MENU_ITEMS.find((m) => m.id === line.id);
+    const sizeOk = item && (item.options ? item.options.some((o) => o.label === line.option) : line.option === "default");
+    if (!item || item.available === false || !sizeOk) {
+      delete cart[key];
+      removed += 1;
+    }
+  }
+
+  renderFilterTabs();
+  renderMenu();
+  applyFilter("all");
+  renderCart();
+  if (!prefersReducedMotion && !isCoarsePointer && window.VanillaTilt) {
+    VanillaTilt.init(document.querySelectorAll(".menu-card[data-tilt]"), { perspective: 900, glare: true });
+  }
+  if (removed > 0) {
+    showCheckoutError("Some items in your cart are no longer available and were removed.");
+  }
+}
+
 // ---- Init --------------------------------------------------------------------
 renderMenu();
 applyFilter("all");
 renderCart();
+syncMenuFromApi();
 
 // Menu cards are injected after load, so their tilt needs its own init pass
 // (desktop only — see the coarse-pointer note above).
@@ -1256,4 +1314,5 @@ if (!prefersReducedMotion && !isCoarsePointer && window.VanillaTilt) {
 }
 
 // Minimum bookable date is today.
-document.getElementById("reservation-date").min = new Date().toISOString().split("T")[0];
+// (Today in the restaurant's timezone, not the visitor's or UTC — the server checks the same clock.)
+document.getElementById("reservation-date").min = new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Karachi" }).format(new Date());

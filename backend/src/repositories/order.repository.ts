@@ -35,9 +35,12 @@ export interface OrderRepository {
    * if it didn't exist (so ids can't be probed). */
   findByIdForCustomer(id: string, customerId: string): Promise<Order | undefined>;
   listByCustomer(customerId: string): Promise<Order[]>;
-  /** `adminMessage` replaces any previous message; null/undefined clears it,
-   * so a note never lingers on a status it wasn't written for. */
-  updateStatus(id: string, status: OrderStatus, adminMessage?: string | null): Promise<Order>;
+  /** Moves the order to `status` ONLY IF it is still in one of `allowedFrom` — one atomic
+   * statement, so two people acting at once (admin vs. customer cancel) can't both
+   * win. Returns undefined if the order wasn't in an allowed state any more.
+   * `adminMessage` replaces any previous message; null/undefined clears it, so a
+   * note never lingers on a status it wasn't written for. */
+  transition(id: string, allowedFrom: OrderStatus[], status: OrderStatus, adminMessage?: string | null): Promise<Order | undefined>;
 }
 
 type PrismaOrderWithItems = PrismaOrder & { items: PrismaOrderItem[] };
@@ -170,13 +173,17 @@ export class PrismaOrderRepository implements OrderRepository {
     return rows.map(toDomainOrder);
   }
 
-  async updateStatus(id: string, status: OrderStatus, adminMessage?: string | null): Promise<Order> {
-    const row = await prisma.order.update({
-      where: { id },
+  async transition(
+    id: string,
+    allowedFrom: OrderStatus[],
+    status: OrderStatus,
+    adminMessage?: string | null
+  ): Promise<Order | undefined> {
+    const result = await prisma.order.updateMany({
+      where: { id, status: { in: allowedFrom } },
       data: { status, adminMessage: adminMessage ?? null },
-      include: { items: true },
     });
-    return toDomainOrder(row);
+    return result.count === 0 ? undefined : this.findById(id);
   }
 }
 

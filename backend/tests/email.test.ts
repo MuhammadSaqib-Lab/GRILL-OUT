@@ -13,7 +13,7 @@ beforeAll(async () => {
 });
 beforeEach(() => mailOutbox.clear());
 
-const adminInbox = env.ADMIN_NOTIFY_EMAIL ?? env.ADMIN_EMAIL;
+const adminInbox = env.ADMIN_NOTIFY_EMAIL;
 
 async function adminSetOrder(id: string, body: Record<string, unknown>) {
   return request(app).patch(`/api/admin/orders/${id}/status`).set("Cookie", await adminCookieHeader()).send(body);

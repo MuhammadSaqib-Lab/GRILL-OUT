@@ -15,6 +15,7 @@
 import type { Prisma } from "@prisma/client";
 import { prisma } from "../config/prisma";
 import type {
+  AdminCustomerDetail,
   AdminCustomerSummary,
   AdminOrderSummary,
   AdminReservationSummary,
@@ -24,6 +25,7 @@ import type {
   PopularMenuItem,
 } from "../types/admin.types";
 import type { Category, MenuItem } from "../types/menu.types";
+import { restaurantStartOfDay, restaurantStartOfMonth, restaurantStartOfWeek, restaurantToday } from "../utils/restaurantTime";
 
 function paginate({ page, limit }: PaginationParams) {
   return { skip: (page - 1) * limit, take: limit };
@@ -119,7 +121,7 @@ export interface AdminReservationListParams extends PaginationParams {
 
 export const adminReservationRepository = {
   async list(params: AdminReservationListParams): Promise<PaginatedResult<AdminReservationSummary>> {
-    const todayStr = new Date().toISOString().slice(0, 10);
+    const todayStr = restaurantToday();
 
     const where: Prisma.ReservationWhereInput = {
       ...(params.status ? { status: params.status as Prisma.EnumReservationStatusFilter["equals"] } : {}),
@@ -171,6 +173,71 @@ export interface AdminCustomerListParams extends PaginationParams {
 }
 
 export const adminCustomerRepository = {
+  /** One customer with their order and reservation history. Explicit `select`s:
+   * the password hash, session version and login email column never leave the database. */
+  async getDetail(id: string): Promise<AdminCustomerDetail | undefined> {
+    const row = await prisma.customer.findUnique({
+      where: { id },
+      select: {
+        id: true,
+        name: true,
+        phone: true,
+        email: true,
+        loginEmail: true,
+        passwordHash: true, // only to tell accounts from guests — never returned
+        createdAt: true,
+        orders: {
+          orderBy: { createdAt: "desc" },
+          take: 100,
+          select: {
+            id: true,
+            status: true,
+            orderType: true,
+            total: true,
+            adminMessage: true,
+            createdAt: true,
+            phone: true,
+            _count: { select: { items: true } },
+          },
+        },
+        reservations: {
+          orderBy: { createdAt: "desc" },
+          take: 100,
+          select: { id: true, status: true, date: true, time: true, guests: true, adminMessage: true, createdAt: true },
+        },
+      },
+    });
+    if (!row) return undefined;
+
+    const email = row.loginEmail ?? row.email;
+    return {
+      id: row.id,
+      name: row.name,
+      ...(email ? { email } : {}),
+      phone: row.phone ?? row.orders[0]?.phone ?? null,
+      kind: row.passwordHash ? "account" : "guest",
+      createdAt: row.createdAt.toISOString(),
+      orders: row.orders.map((o) => ({
+        id: o.id,
+        status: o.status,
+        orderType: o.orderType,
+        total: Number(o.total),
+        itemCount: o._count.items,
+        ...(o.adminMessage ? { adminMessage: o.adminMessage } : {}),
+        createdAt: o.createdAt.toISOString(),
+      })),
+      reservations: row.reservations.map((r) => ({
+        id: r.id,
+        status: r.status,
+        date: r.date,
+        time: r.time,
+        guests: r.guests,
+        ...(r.adminMessage ? { adminMessage: r.adminMessage } : {}),
+        createdAt: r.createdAt.toISOString(),
+      })),
+    };
+  },
+
   async list(params: AdminCustomerListParams): Promise<PaginatedResult<AdminCustomerSummary>> {
     const where: Prisma.CustomerWhereInput = params.search
       ? {
@@ -377,23 +444,6 @@ export const adminMenuRepository = {
 // Dashboard analytics
 // ---------------------------------------------------------------------------
 
-function startOfDay(d: Date): Date {
-  const x = new Date(d);
-  x.setHours(0, 0, 0, 0);
-  return x;
-}
-function startOfWeek(d: Date): Date {
-  const x = startOfDay(d);
-  const day = x.getDay(); // 0 = Sunday
-  x.setDate(x.getDate() - day);
-  return x;
-}
-function startOfMonth(d: Date): Date {
-  const x = startOfDay(d);
-  x.setDate(1);
-  return x;
-}
-
 const ALL_ORDER_STATUSES = [
   "PENDING",
   "CONFIRMED",
@@ -407,10 +457,10 @@ const ALL_ORDER_STATUSES = [
 export const adminDashboardRepository = {
   async getStats(): Promise<DashboardStats> {
     const now = new Date();
-    const todayStart = startOfDay(now);
-    const weekStart = startOfWeek(now);
-    const monthStart = startOfMonth(now);
-    const todayStr = now.toISOString().slice(0, 10);
+    const todayStart = restaurantStartOfDay(now);
+    const weekStart = restaurantStartOfWeek(now);
+    const monthStart = restaurantStartOfMonth(now);
+    const todayStr = restaurantToday(now);
 
     // Revenue intentionally excludes CANCELLED orders — a cancelled order
     // was never fulfilled and isn't real revenue.

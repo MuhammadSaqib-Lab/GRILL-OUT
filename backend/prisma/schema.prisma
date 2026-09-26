@@ -22,10 +22,10 @@
 // - No ContactMessage / NewsletterSubscriber models: index.html has no
 //   contact form and no newsletter signup (verified before writing this
 //   schema, and again — nothing changed since Phase 1). Nothing to back.
-// - AdminUser (Phase 3): passwordHash only, never a plaintext password
-//   column. Bootstrapped by prisma/seed.ts from ADMIN_EMAIL/ADMIN_PASSWORD
-//   env vars (hashed before insert) — no credentials hardcoded anywhere in
-//   source. See src/modules/admin-auth for the login/session code.
+// - AdminUser: passwordHash only, never a plaintext password column. The
+//   account is created by `npm run admin:setup` from operator-supplied
+//   ADMIN_EMAIL/ADMIN_PASSWORD (hashed before insert) — no credential is
+//   hardcoded, seeded or committed anywhere.
 
 generator client {
   provider = "prisma-client-js"

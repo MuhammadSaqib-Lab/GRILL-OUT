@@ -95,7 +95,18 @@ const RESERVATION_STATUS_LABEL: Record<ReservationStatus, string> = {
   COMPLETED: "Completed",
 };
 
-const adminRecipient = () => env.ADMIN_NOTIFY_EMAIL ?? env.ADMIN_EMAIL;
+const adminRecipient = (): string | undefined => env.ADMIN_NOTIFY_EMAIL ?? env.ADMIN_EMAIL;
+
+/** Restaurant-side alert. With no ADMIN_NOTIFY_EMAIL configured there is nobody
+ * to send it to: say so in the log rather than failing the customer's order. */
+function sendToAdmin(subject: string, text: string, html: string): void {
+  const to = adminRecipient();
+  if (!to) {
+    logger.warn(`Admin alert not sent (set ADMIN_NOTIFY_EMAIL): "${subject}"`);
+    return;
+  }
+  send({ to, subject, text, html });
+}
 
 function layout(heading: string, rows: Array<[string, string]>, footer?: string): { html: string; text: string } {
   const htmlRows = rows
@@ -138,7 +149,7 @@ export const emailService = {
       ["Total", money(order.total)],
       ...(order.specialInstructions ? ([["Notes", order.specialInstructions]] as Array<[string, string]>) : []),
     ]);
-    send({ to: adminRecipient(), subject: `New order ${order.id} — ${money(order.total)}`, text, html });
+    sendToAdmin(`New order ${order.id} — ${money(order.total)}`, text, html);
   },
 
   /** Alert to the restaurant: a new table reservation. */
@@ -153,12 +164,32 @@ export const emailService = {
       ["Guests", reservation.guests],
       ...(reservation.specialRequests ? ([["Special requests", reservation.specialRequests]] as Array<[string, string]>) : []),
     ]);
-    send({
-      to: adminRecipient(),
-      subject: `New reservation ${reservation.id} — ${reservation.date} ${reservation.time}`,
-      text,
-      html,
-    });
+    sendToAdmin(`New reservation ${reservation.id} — ${reservation.date} ${reservation.time}`, text, html);
+  },
+
+  /** Alert to the restaurant: the customer cancelled their own order. */
+  notifyOrderCancelledByCustomer(order: Order): void {
+    const { html, text } = layout(`Order ${order.id} cancelled by the customer`, [
+      ["Customer", order.customerName],
+      ["Phone", order.phone],
+      ["Order number", order.id],
+      ["Items", orderItemLines(order)],
+      ["Total", money(order.total)],
+    ]);
+    sendToAdmin(`Customer cancelled order ${order.id}`, text, html);
+  },
+
+  /** Alert to the restaurant: the customer cancelled their own reservation. */
+  notifyReservationCancelledByCustomer(reservation: Reservation): void {
+    const { html, text } = layout(`Reservation ${reservation.id} cancelled by the customer`, [
+      ["Customer", reservation.customerName],
+      ["Phone", reservation.phone],
+      ["Reservation number", reservation.id],
+      ["Date", reservation.date],
+      ["Time", reservation.time],
+      ["Guests", reservation.guests],
+    ]);
+    sendToAdmin(`Customer cancelled reservation ${reservation.id}`, text, html);
   },
 
   /** Email to the customer after an admin changes an order's status. Sent for

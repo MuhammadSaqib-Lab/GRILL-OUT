@@ -8,7 +8,7 @@ import { prisma } from "../src/config/prisma";
 import { adminCookie } from "../src/utils/adminToken";
 import { redact } from "../src/utils/logger";
 import { hashPassword } from "../src/utils/password";
-import { registerCustomer, type TestCustomer } from "./helpers";
+import { registerCustomer, testAdmin, type TestCustomer } from "./helpers";
 
 const app = createApp();
 
@@ -37,7 +37,7 @@ afterEach(() => {
 
 describe("admin session tokens are verified strictly", () => {
   it("rejects a token signed with a different secret", async () => {
-    const forged = jwt.sign({ sub: "x", email: env.ADMIN_EMAIL, ver: 0 }, "a-completely-different-secret-value-0000", {
+    const forged = jwt.sign({ sub: "x", email: "someone@grillout.test", ver: 0 }, "a-completely-different-secret-value-0000", {
       algorithm: "HS256",
     });
     const res = await request(app).get("/api/admin/dashboard").set("Cookie", cookieFor(forged));
@@ -45,7 +45,7 @@ describe("admin session tokens are verified strictly", () => {
   });
 
   it("rejects an expired token", async () => {
-    const admin = await prisma.adminUser.findUniqueOrThrow({ where: { email: env.ADMIN_EMAIL } });
+    const admin = await prisma.adminUser.findUniqueOrThrow({ where: { id: (await testAdmin()).id } });
     const expired = jwt.sign({ sub: admin.id, email: admin.email, ver: admin.sessionVersion }, env.ADMIN_JWT_SECRET, {
       algorithm: "HS256",
       expiresIn: -60,
@@ -55,7 +55,7 @@ describe("admin session tokens are verified strictly", () => {
   });
 
   it("rejects an unsigned (alg: none) token", async () => {
-    const admin = await prisma.adminUser.findUniqueOrThrow({ where: { email: env.ADMIN_EMAIL } });
+    const admin = await prisma.adminUser.findUniqueOrThrow({ where: { id: (await testAdmin()).id } });
     const b64 = (o: object) => Buffer.from(JSON.stringify(o)).toString("base64url");
     const none = `${b64({ alg: "none", typ: "JWT" })}.${b64({ sub: admin.id, email: admin.email, ver: admin.sessionVersion })}.`;
     const res = await request(app).get("/api/admin/dashboard").set("Cookie", cookieFor(none));
@@ -232,7 +232,7 @@ describe("there is no public lookup of orders or reservations", () => {
 
 describe("admin input hardening", () => {
   async function loggedInAgent() {
-    const admin = await prisma.adminUser.findUniqueOrThrow({ where: { email: env.ADMIN_EMAIL } });
+    const admin = await prisma.adminUser.findUniqueOrThrow({ where: { id: (await testAdmin()).id } });
     const token = jwt.sign({ sub: admin.id, email: admin.email, ver: admin.sessionVersion }, env.ADMIN_JWT_SECRET, {
       algorithm: "HS256",
     });

@@ -3,8 +3,7 @@ import { beforeAll, describe, expect, it } from "vitest";
 import { createApp } from "../src/app";
 import { env } from "../src/config/env";
 import { prisma } from "../src/config/prisma";
-import { hashPassword } from "../src/utils/password";
-import { orderBody, registerCustomer, reservationBody, uniquePhone, type TestCustomer } from "./helpers";
+import { createTestAdmin, orderBody, registerCustomer, reservationBody, testAdmin, uniquePhone, type TestCustomer } from "./helpers";
 
 const app = createApp();
 
@@ -49,13 +48,13 @@ describe("admin auth", () => {
     const res = await postLogin(request(app), { email: "nobody@grillout.local", password: "whatever123" });
     expect(res.status).toBe(401);
     expect(res.body.success).toBe(false);
-    expect(res.body.error.message).toBe("Invalid email or password");
+    expect(res.body.error.message).toBe("Invalid email or password.");
   });
 
   it("rejects the right email with the wrong password", async () => {
-    const res = await postLogin(request(app), { email: env.ADMIN_EMAIL, password: "definitely-wrong" });
+    const res = await postLogin(request(app), { email: (await testAdmin()).email, password: "definitely-wrong" });
     expect(res.status).toBe(401);
-    expect(res.body.error.message).toBe("Invalid email or password");
+    expect(res.body.error.message).toBe("Invalid email or password.");
   });
 
   it("rejects a malformed login body before ever checking credentials", async () => {
@@ -66,16 +65,17 @@ describe("admin auth", () => {
 
   it("never leaks a password hash in the login or profile response", async () => {
     const agent = request.agent(app);
-    const login = await postLogin(agent, { email: env.ADMIN_EMAIL, password: env.ADMIN_PASSWORD });
+    const admin = await testAdmin();
+    const login = await postLogin(agent, { email: admin.email, password: admin.password });
 
     expect(login.status).toBe(200);
     expect(login.headers["set-cookie"]).toBeDefined();
-    expect(login.body.data.email).toBe(env.ADMIN_EMAIL);
+    expect(login.body.data.email).toBe(admin.email);
     expect(login.body.data.passwordHash).toBeUndefined();
 
     const me = await agent.get("/api/admin/auth/me");
     expect(me.status).toBe(200);
-    expect(me.body.data.email).toBe(env.ADMIN_EMAIL);
+    expect(me.body.data.email).toBe(admin.email);
     expect(me.body.data.passwordHash).toBeUndefined();
   });
 
@@ -94,12 +94,10 @@ describe("admin auth", () => {
     // A throwaway admin: logging out bumps that account's session version, and
     // doing it to the shared seeded admin would sign out every other test file
     // that is mid-request with the seeded admin's cookie.
-    const temp = await prisma.adminUser.create({
-      data: { email: `logout-${Date.now()}@grillout.local`, passwordHash: await hashPassword(env.ADMIN_PASSWORD), name: "Temp" },
-    });
+    const temp = await createTestAdmin();
     try {
       const agent = request.agent(app);
-      await postLogin(agent, { email: temp.email, password: env.ADMIN_PASSWORD });
+      await postLogin(agent, { email: temp.email, password: temp.password });
 
       const before = await agent.get("/api/admin/auth/me");
       expect(before.status).toBe(200);
@@ -119,7 +117,8 @@ describe("authenticated admin API", () => {
   const adminAgent = request.agent(app);
 
   beforeAll(async () => {
-    const res = await postLogin(adminAgent, { email: env.ADMIN_EMAIL, password: env.ADMIN_PASSWORD });
+    const admin = await testAdmin();
+    const res = await postLogin(adminAgent, { email: admin.email, password: admin.password });
     expect(res.status).toBe(200);
   });
 
@@ -335,16 +334,28 @@ describe("authenticated admin API", () => {
       await prisma.menuItem.update({ where: { id: 21 }, data: { isAvailable: true } });
     });
 
-    it("deactivates instead of deleting a category that still has items", async () => {
-      const stillHasItems = await prisma.menuCategory.findFirst({ where: { items: { some: {} } } });
-      if (!stillHasItems) throw new Error("Expected at least one seeded category with items");
+    it("deactivates instead of deleting a category that still has items (and hides it from the public menu)", async () => {
+      // A throwaway category: deactivating a real one would briefly hide real menu
+      // items from other test files reading the shared database.
+      const cat = await prisma.menuCategory.create({ data: { slug: `temp-inactive-${Date.now()}`, name: "Temp Inactive", sortOrder: 998 } });
+      const item = await prisma.menuItem.create({
+        data: { categoryId: cat.id, name: `Temp Hidden Item ${Date.now()}`, slug: `temp-hidden-${Date.now()}`, description: "temp", price: 100, image: "https://example.com/x.jpg" },
+      });
+      try {
+        const visibleBefore = await request(app).get("/api/menu");
+        expect(visibleBefore.body.data.some((i: { id: number }) => i.id === item.id)).toBe(true);
 
-      const res = await adminAgent.delete(`/api/admin/menu/categories/${stillHasItems.id}`);
-      expect(res.status).toBe(200);
-      expect(res.body.data.action).toBe("deactivated");
+        const res = await adminAgent.delete(`/api/admin/menu/categories/${cat.id}`);
+        expect(res.status).toBe(200);
+        expect(res.body.data.action).toBe("deactivated");
 
-      // Restore it — this is real seeded category data.
-      await prisma.menuCategory.update({ where: { id: stillHasItems.id }, data: { isActive: true } });
+        const visibleAfter = await request(app).get("/api/menu");
+        expect(visibleAfter.body.data.some((i: { id: number }) => i.id === item.id)).toBe(false);
+        expect((await request(app).get("/api/categories")).body.data.some((c: { key: string }) => c.key === cat.slug)).toBe(false);
+      } finally {
+        await prisma.menuItem.delete({ where: { id: item.id } });
+        await prisma.menuCategory.delete({ where: { id: cat.id } });
+      }
     });
   });
 });
@@ -356,11 +367,11 @@ describe("admin login rate limiting", () => {
   it("locks out further attempts once the configured limit is hit", async () => {
     const remaining = env.ADMIN_LOGIN_RATE_LIMIT_MAX - loginAttempts;
     for (let i = 0; i < remaining; i++) {
-      const res = await postLogin(request(app), { email: env.ADMIN_EMAIL, password: "still-wrong" });
+      const res = await postLogin(request(app), { email: (await testAdmin()).email, password: "still-wrong" });
       expect(res.status).toBe(401);
     }
 
-    const blocked = await postLogin(request(app), { email: env.ADMIN_EMAIL, password: "still-wrong" });
+    const blocked = await postLogin(request(app), { email: (await testAdmin()).email, password: "still-wrong" });
     expect(blocked.status).toBe(429);
     expect(blocked.body.error.code).toBe("RATE_LIMITED");
   });

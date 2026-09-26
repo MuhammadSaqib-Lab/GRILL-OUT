@@ -29,12 +29,13 @@ Both outputs are committed so the host needs no build step.
 | `NODE_ENV` | `production` (enables Secure cookies, `__Host-` cookie prefix, HSTS, unsafe-config guards) |
 | `DATABASE_URL` | production Postgres URL, from the host's secret store |
 | `ADMIN_JWT_SECRET` | `openssl rand -hex 32` — unique, never reused from dev |
-| `ADMIN_EMAIL` / `ADMIN_PASSWORD` | strong password (≥ 12 chars); the server refuses to boot with the placeholder values |
+| `ADMIN_EMAIL` / `ADMIN_PASSWORD` | **Optional.** Normally leave unset — `npm run admin:setup` asks you (see *Admin account* below). Only for unattended setups; server-side only, read only by that command, never needed while the server runs. |
 | `FRONTEND_URL` | comma-separated `https://` origins of the public site (no localhost — the server refuses to start otherwise) |
 | `TRUST_PROXY` | number of proxy hops in front of Node (usually `1`) — required for correct per-IP rate limiting |
 | `CUSTOMER_JWT_SECRET` | `openssl rand -hex 32` — must differ from `ADMIN_JWT_SECRET` (the server refuses to start otherwise) |
 | `SMTP_HOST`, `SMTP_PORT`, `SMTP_SECURE`, `SMTP_USER`, `SMTP_PASS`, `MAIL_FROM` | your mail provider. **`SMTP_HOST` is required in production** — without it order/reservation emails silently wouldn't be sent, so the server refuses to boot. `MAIL_FROM` should be an address on a domain you've set up SPF/DKIM for. |
-| `ADMIN_NOTIFY_EMAIL` | inbox for "new order" / "new reservation" alerts (defaults to `ADMIN_EMAIL`) |
+| `ADMIN_NOTIFY_EMAIL` | inbox for "new order" / "new reservation" alerts (falls back to `ADMIN_EMAIL` if that is set). **Required in production** (one of the two) — otherwise the restaurant is never told about new orders/reservations, so the server refuses to boot. In development with neither set, alerts are skipped with a logged warning. |
+| `RESTAURANT_TIMEZONE` | IANA timezone the restaurant runs on (default `Asia/Karachi`). Decides what "today" means for reservation dates/past-time checks and the dashboard's today/week/month figures, independent of the server's own clock. |
 | `RATE_LIMIT_*`, `ADMIN_LOGIN_RATE_LIMIT_MAX`, `CUSTOMER_AUTH_RATE_LIMIT_MAX`, `CUSTOMER_SESSION_DAYS`, `DELIVERY_FEE` | see `.env.example` |
 
 ### Customer login and cookies
@@ -44,9 +45,23 @@ Customer sessions are an httpOnly cookie, so the website and the API must be **t
 ```bash
 cd backend
 npx prisma migrate deploy
-NODE_ENV=production ALLOW_PRODUCTION_SEED=true npm run db:seed   # first deploy only
+NODE_ENV=production ALLOW_PRODUCTION_SEED=true npm run db:seed   # first deploy only: loads the menu (no admin account)
+npm run admin:setup                                                # asks for your admin email + password (hidden) — see below
 ```
-Change the admin password later with `npm run admin:set-password` (never re-seed).
+### Admin account
+No admin email or password exists anywhere in the repository, the seed, or the defaults — you choose them, at setup time:
+
+```bash
+cd backend
+npm run admin:setup
+```
+It asks **Enter your admin email:** and **Enter your admin password:** (the password is masked as you type and asked twice; rules: 12+ characters, max 72 bytes, a letter and a number). Invalid answers are explained and asked again, and nothing is saved until both are valid. Only a bcrypt hash is stored — the password is never printed, logged, or written to any file, and you do not edit `.env`.
+
+- **Unattended setups** (a host's one-off command with no terminal): supply `ADMIN_EMAIL` and `ADMIN_PASSWORD` through the host's secret/environment settings instead; they are used as-is and never printed. With no terminal and nothing supplied, the command stops with an explanation rather than guessing.
+- **Re-running is safe and duplicate-free:** it updates the existing admin (email and password) instead of adding another, and signs out that account's active sessions. If several admin accounts exist and the email you enter matches none, it stops and explains rather than overwrite one. Use the same command to change the login later. Never re-run `db:seed` for this.
+- Login is case-insensitive on the email.
+
+> The old built-in default admin login appeared in earlier git commits (it was a placeholder, but treat it as public). Running `admin:setup` replaces that account's email and password; do not reuse the old values anywhere.
 
 Orders/reservations made before customer accounts existed stay with their old guest record and are never merged automatically. To attach them to a customer who has since registered — after you've confirmed they own the email — run `npm run customers:link-legacy -- --email their@email.com` (dry run), then add `--apply`.
 

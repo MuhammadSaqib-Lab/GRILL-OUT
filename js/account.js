@@ -155,19 +155,19 @@ function overview() {
       </a>
     </div>
     <h2 class="mt-10 font-display text-2xl tracking-wide">Recent Orders</h2>
-    <div class="mt-3 space-y-4">${latestOrders.length ? latestOrders.map(orderCard).join("") : empty("You haven't placed an order yet.", { href: "/#menu", label: "Browse the menu" })}</div>
+    <div class="mt-3 space-y-4">${latestOrders.length ? latestOrders.map(orderCard).join("") : empty("You don't have any orders yet.", { href: "/#menu", label: "Browse the menu" })}</div>
     <h2 class="mt-10 font-display text-2xl tracking-wide">Recent Reservations</h2>
-    <div class="mt-3 space-y-4">${latestReservations.length ? latestReservations.map(reservationCard).join("") : empty("You haven't booked a table yet.", { href: "/#reservations", label: "Book a table" })}</div>`;
+    <div class="mt-3 space-y-4">${latestReservations.length ? latestReservations.map(reservationCard).join("") : empty("You don't have any reservations yet.", { href: "/#reservations", label: "Book a table" })}</div>`;
 }
 
 function ordersSection() {
   return `<h2 class="font-display text-2xl tracking-wide">My Orders</h2>
-    <div class="mt-3 space-y-4">${state.orders.length ? state.orders.map(orderCard).join("") : empty("You haven't placed an order yet.", { href: "/#menu", label: "Browse the menu" })}</div>`;
+    <div class="mt-3 space-y-4">${state.orders.length ? state.orders.map(orderCard).join("") : empty("You don't have any orders yet.", { href: "/#menu", label: "Browse the menu" })}</div>`;
 }
 
 function reservationsSection() {
   return `<h2 class="font-display text-2xl tracking-wide">My Reservations</h2>
-    <div class="mt-3 space-y-4">${state.reservations.length ? state.reservations.map(reservationCard).join("") : empty("You haven't booked a table yet.", { href: "/#reservations", label: "Book a table" })}</div>`;
+    <div class="mt-3 space-y-4">${state.reservations.length ? state.reservations.map(reservationCard).join("") : empty("You don't have any reservations yet.", { href: "/#reservations", label: "Book a table" })}</div>`;
 }
 
 function profileSection() {

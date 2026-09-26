@@ -19,6 +19,7 @@ export const reservationController = {
   cancel: asyncHandler(async (req: Request, res: Response) => {
     const { id } = req.params as unknown as { id: string };
     const reservation = await reservationService.cancelReservation(id, me(req).id);
+    emailService.notifyReservationCancelledByCustomer(reservation);
     sendSuccess(res, reservation, 200, "Reservation cancelled");
   }),
 };

@@ -8,6 +8,11 @@ const CANCELLABLE_STATUSES: ReservationStatus[] = ["PENDING", "CONFIRMED"];
 
 export const reservationService = {
   async createReservation(input: CreateReservationInput, customer: AuthenticatedCustomer): Promise<Reservation> {
+    // A double-click or a retry after a slow response must not book the same table twice.
+    if (await reservationRepository.findActiveDuplicate(customer.id, input.date, input.time)) {
+      throw ApiError.conflict("You already have a reservation at that date and time.");
+    }
+
     return reservationRepository.createReservation({
       customerId: customer.id,
       customerName: customer.name,
@@ -36,6 +41,8 @@ export const reservationService = {
     if (!CANCELLABLE_STATUSES.includes(reservation.status)) {
       throw ApiError.conflict(`Reservation ${id} is "${reservation.status}" and can no longer be cancelled`);
     }
-    return reservationRepository.updateStatus(id, "CANCELLED");
+    const cancelled = await reservationRepository.transition(id, CANCELLABLE_STATUSES, "CANCELLED", null);
+    if (!cancelled) throw ApiError.conflict(`Reservation ${id} can no longer be cancelled`);
+    return cancelled;
   },
 };

@@ -55,9 +55,10 @@ export const adminOrderController = {
   }),
 
   updateStatus: asyncHandler(async (req: Request, res: Response) => {
-    const order = await adminOrderService.updateStatus(req.params.id as string, req.body.status, req.body.message);
-    // The customer's account already shows the new status (same row); this also emails them.
-    emailService.notifyOrderStatus(order);
+    const { order, notify } = await adminOrderService.updateStatus(req.params.id as string, req.body.status, req.body.message);
+    // The customer's account already shows the new status (same row); this also emails them,
+    // but only when something actually changed.
+    if (notify) emailService.notifyOrderStatus(order);
     sendSuccess(res, order, 200, "Order status updated");
   }),
 };
@@ -74,17 +75,21 @@ export const adminReservationController = {
   }),
 
   updateStatus: asyncHandler(async (req: Request, res: Response) => {
-    const reservation = await adminReservationService.updateStatus(
+    const { reservation, notify } = await adminReservationService.updateStatus(
       req.params.id as string,
       req.body.status,
       req.body.message
     );
-    emailService.notifyReservationStatus(reservation);
+    if (notify) emailService.notifyReservationStatus(reservation);
     sendSuccess(res, reservation, 200, "Reservation status updated");
   }),
 };
 
 export const adminCustomerController = {
+  getDetail: asyncHandler(async (req: Request, res: Response) => {
+    sendSuccess(res, await adminCustomerService.getDetail(req.params.id as string));
+  }),
+
   list: asyncHandler(async (req: Request, res: Response) => {
     const result = await adminCustomerService.list(req.query as never);
     sendSuccess(res, result);

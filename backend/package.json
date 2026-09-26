@@ -24,7 +24,7 @@
     "prisma:seed": "prisma db seed",
     "db:studio": "prisma studio",
     "db:validate": "prisma validate",
-    "admin:set-password": "tsx scripts/set-admin-password.ts",
+    "admin:setup": "tsx scripts/setup-admin.ts",
     "customers:link-legacy": "tsx scripts/link-legacy-orders.ts"
   },
   "dependencies": {

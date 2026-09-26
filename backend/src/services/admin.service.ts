@@ -36,6 +36,8 @@ import type { ReservationStatus } from "../types/reservation.types";
 
 const ORDER_TERMINAL: OrderStatus[] = ["COMPLETED", "CANCELLED"];
 const ORDER_CANCELLABLE_FROM: OrderStatus[] = ["PENDING", "CONFIRMED"];
+const ORDER_OPEN: OrderStatus[] = ["PENDING", "CONFIRMED", "PREPARING", "READY", "OUT_FOR_DELIVERY"];
+const RESERVATION_OPEN: ReservationStatus[] = ["PENDING", "CONFIRMED"];
 const RESERVATION_TERMINAL: ReservationStatus[] = ["COMPLETED", "CANCELLED"];
 const RESERVATION_CANCELLABLE_FROM: ReservationStatus[] = ["PENDING", "CONFIRMED"];
 
@@ -46,11 +48,11 @@ export const adminAuthService = {
     // work — whether the email doesn't exist or the password is wrong.
     if (!admin) {
       await burnPasswordCheck(input.password);
-      throw ApiError.unauthorized("Invalid email or password");
+      throw ApiError.unauthorized("Invalid email or password.");
     }
 
     const valid = await verifyPassword(input.password, admin.passwordHash);
-    if (!valid) throw ApiError.unauthorized("Invalid email or password");
+    if (!valid) throw ApiError.unauthorized("Invalid email or password.");
 
     const token = signAdminToken({ sub: admin.id, email: admin.email, ver: admin.sessionVersion });
     return { token, profile: { id: admin.id, email: admin.email, name: admin.name } };
@@ -86,6 +88,9 @@ export const adminOrderService = {
     return order;
   },
 
+  /** `notify` says whether the customer should be emailed: only when the status
+   * actually changed, or a new message was written — re-saving the same thing
+   * must not send the same email twice. */
   async updateStatus(id: string, nextStatus: OrderStatus, message: string | null = null) {
     const order = await this.getById(id);
 
@@ -96,7 +101,18 @@ export const adminOrderService = {
       throw ApiError.conflict(`Order ${id} can no longer be cancelled from status "${order.status}"`);
     }
 
-    return orderRepository.updateStatus(id, nextStatus, message);
+    const previousMessage = order.adminMessage ?? null;
+    if (order.status === nextStatus && previousMessage === message) return { order, notify: false };
+
+    const updated = await orderRepository.transition(
+      id,
+      nextStatus === "CANCELLED" ? ORDER_CANCELLABLE_FROM : ORDER_OPEN,
+      nextStatus,
+      message
+    );
+    if (!updated) throw ApiError.conflict(`Order ${id} was just changed by someone else — refresh and try again`);
+
+    return { order: updated, notify: order.status !== nextStatus || (message !== null && message !== previousMessage) };
   },
 };
 
@@ -115,6 +131,7 @@ export const adminReservationService = {
     return reservation;
   },
 
+  /** See adminOrderService.updateStatus for what `notify` means. */
   async updateStatus(id: string, nextStatus: ReservationStatus, message: string | null = null) {
     const reservation = await this.getById(id);
 
@@ -125,7 +142,21 @@ export const adminReservationService = {
       throw ApiError.conflict(`Reservation ${id} can no longer be cancelled from status "${reservation.status}"`);
     }
 
-    return reservationRepository.updateStatus(id, nextStatus, message);
+    const previousMessage = reservation.adminMessage ?? null;
+    if (reservation.status === nextStatus && previousMessage === message) return { reservation, notify: false };
+
+    const updated = await reservationRepository.transition(
+      id,
+      nextStatus === "CANCELLED" ? RESERVATION_CANCELLABLE_FROM : RESERVATION_OPEN,
+      nextStatus,
+      message
+    );
+    if (!updated) throw ApiError.conflict(`Reservation ${id} was just changed by someone else — refresh and try again`);
+
+    return {
+      reservation: updated,
+      notify: reservation.status !== nextStatus || (message !== null && message !== previousMessage),
+    };
   },
 };
 
@@ -134,6 +165,12 @@ export const adminReservationService = {
 // ---------------------------------------------------------------------------
 
 export const adminCustomerService = {
+  async getDetail(id: string) {
+    const customer = await adminCustomerRepository.getDetail(id);
+    if (!customer) throw ApiError.notFound("Customer was not found");
+    return customer;
+  },
+
   list(params: AdminCustomerListParams) {
     return adminCustomerRepository.list(params);
   },

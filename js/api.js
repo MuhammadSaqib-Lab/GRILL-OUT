@@ -71,17 +71,28 @@ function signupUrl(next) {
 const Account = {
   _me: undefined,
 
-  /** The logged-in customer ({ name, email }) or null. Cached per page load. */
+  _pending: null,
+
+  /** The logged-in customer ({ name, email }) or null. One request per page load,
+   * shared by every caller (nav, checkout, reservation form all ask at once). */
   async me(force = false) {
-    if (this._me === undefined || force) {
-      try {
-        const res = await apiFetch("/auth/customer/me");
-        this._me = res.ok ? res.data : null;
-      } catch {
-        this._me = null;
-      }
+    if (this._me !== undefined && !force) return this._me;
+    if (!this._pending || force) {
+      // /session answers 200 with { customer: null } when logged out (no console 401).
+      this._pending = apiFetch("/auth/customer/session")
+        .then((res) => {
+          this._me = res.ok && res.data && res.data.customer ? res.data.customer : null;
+          return this._me;
+        })
+        .catch(() => {
+          this._me = null;
+          return null;
+        })
+        .finally(() => {
+          this._pending = null;
+        });
     }
-    return this._me;
+    return this._pending;
   },
 
   set(profile) {

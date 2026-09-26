@@ -174,12 +174,13 @@ npm test
 ```bash
 # never run `migrate dev` against production — it can prompt/reset
 DATABASE_URL="<production connection string>" npx prisma migrate deploy
-# FIRST deploy only: loads the menu + creates the admin account. The seed resets every
+# FIRST deploy only: loads the menu (the seed does NOT create an admin). It resets every
 # menu item to the source data, so it refuses to run in production unless you opt in:
 NODE_ENV=production ALLOW_PRODUCTION_SEED=true DATABASE_URL="<production connection string>" npm run db:seed
 
-# Later, to change the admin password WITHOUT touching menu data (signs out all sessions):
-NODE_ENV=production DATABASE_URL="<production connection string>" ADMIN_PASSWORD="<new password>" npm run admin:set-password
+# Create / change the admin login: asks for the email + password (hidden) in the
+# terminal; stores only a hash; safe to repeat; signs out that admin's sessions:
+NODE_ENV=production DATABASE_URL="<production connection string>" npm run admin:setup
 ```
 `migrate deploy` only applies migrations already committed under
 `prisma/migrations/` — it never generates new ones or asks questions,

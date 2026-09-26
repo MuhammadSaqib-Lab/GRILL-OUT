@@ -45,6 +45,8 @@ export const orderService = {
     if (!CANCELLABLE_STATUSES.includes(order.status)) {
       throw ApiError.conflict(`Order ${id} is "${order.status}" and can no longer be cancelled`);
     }
-    return orderRepository.updateStatus(id, "CANCELLED");
+    const cancelled = await orderRepository.transition(id, CANCELLABLE_STATUSES, "CANCELLED", null);
+    if (!cancelled) throw ApiError.conflict(`Order ${id} can no longer be cancelled`);
+    return cancelled;
   },
 };

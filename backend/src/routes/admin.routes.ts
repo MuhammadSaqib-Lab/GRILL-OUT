@@ -21,6 +21,7 @@ import {
   adminUpdateMenuItemSchema,
   adminUpdateOrderStatusSchema,
   adminUpdateReservationStatusSchema,
+  customerIdParamSchema,
   idParamSchema,
 } from "../validators/admin.validator";
 import { orderIdParamSchema } from "../validators/order.validator";
@@ -70,6 +71,7 @@ adminRouter.patch(
 );
 
 adminRouter.get("/customers", validateRequest({ query: adminCustomerListQuerySchema }), adminCustomerController.list);
+adminRouter.get("/customers/:id", validateRequest({ params: customerIdParamSchema }), adminCustomerController.getDetail);
 
 adminRouter.get("/menu/categories", adminMenuController.listCategories);
 adminRouter.post(

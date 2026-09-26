@@ -4,6 +4,8 @@
   "private": true,
   "description": "Grill Out Restaurant — static public site + admin UI build tooling (CSS build, SEO file generation)",
   "scripts": {
+    "build": "npm --prefix backend ci --include=dev && npm --prefix backend run db:generate && npm --prefix backend run build",
+    "start": "npm --prefix backend start",
     "build:css": "npm run build:css:public && npm run build:css:admin",
     "build:css:public": "tailwindcss -c tailwind.public.config.js -i css/tailwind.input.css -o css/tailwind.css --minify",
     "build:css:admin": "tailwindcss -c tailwind.admin.config.js -i css/tailwind.input.css -o backend/admin-ui/shared/admin.css --minify",
